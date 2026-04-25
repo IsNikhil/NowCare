@@ -43,19 +43,19 @@ export function Modal({ open, onClose, title, children, maxWidth = 'md' }: Modal
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4"
       role="dialog"
       aria-modal
       aria-labelledby="modal-title"
     >
       <div
-        className="absolute inset-0 bg-ink-900/40 backdrop-blur-sm"
+        className="fixed inset-0 bg-ink-900/40 backdrop-blur-[2px]"
         onClick={onClose}
         aria-hidden
       />
       <div
         className={[
-          'relative w-full glass-2 rounded-3xl p-6 shadow-2xl animate-fade-up',
+          'relative my-4 max-h-[calc(100vh-2rem)] w-full overflow-y-auto glass-2 rounded-3xl p-6 shadow-2xl animate-fade-up',
           widthClasses[maxWidth],
         ].join(' ')}
       >

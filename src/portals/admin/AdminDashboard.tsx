@@ -1,9 +1,9 @@
-import { useState } from 'react'
-import { where, orderBy, doc, updateDoc, serverTimestamp } from 'firebase/firestore'
+import { useEffect, useMemo, useState } from 'react'
+import { where, deleteField, doc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Building2, AlertTriangle, Users, Stethoscope, Activity,
-  CheckCircle2, XCircle, Clock, LayoutDashboard, CheckSquare,
+  CheckCircle2, XCircle, Clock, LayoutDashboard,
   ExternalLink, Pencil,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -23,11 +23,11 @@ import { fadeRise, stagger } from '../../lib/motion'
 import type { Hospital, Doctor, Patient, Role, User } from '../../types'
 
 type Tab = 'overview' | 'hospitals' | 'doctors' | 'patients' | 'users'
-type EditableKind = 'hospital' | 'doctor' | 'patient' | 'user'
+type AdminPatient = Partial<Patient> & { id: string; uid: string; email?: string; hasProfile: boolean }
 type EditableItem =
   | { kind: 'hospital'; item: Hospital & { id: string } }
   | { kind: 'doctor'; item: Doctor & { id: string } }
-  | { kind: 'patient'; item: Patient & { id: string } }
+  | { kind: 'patient'; item: AdminPatient }
   | { kind: 'user'; item: User & { id: string } }
 
 const ER_COLORS: Record<string, string> = {
@@ -88,7 +88,7 @@ function OverviewPanel({
   pending: (Hospital & { id: string })[]
   approved: (Hospital & { id: string })[]
   doctors: (Doctor & { id: string })[]
-  patients: (Patient & { id: string })[]
+  patients: AdminPatient[]
   onApprove: (h: Hospital & { id: string }) => void
   onDeny: (h: Hospital & { id: string }) => void
   processing: string | null
@@ -387,9 +387,9 @@ function DoctorsPanel({
 function PatientsPanel({
   patients, loading, onEdit,
 }: {
-  patients: (Patient & { id: string })[]
+  patients: AdminPatient[]
   loading: boolean
-  onEdit: (p: Patient & { id: string }) => void
+  onEdit: (p: AdminPatient) => void
 }) {
   if (loading) return <SkeletonList count={4} />
 
@@ -418,11 +418,13 @@ function PatientsPanel({
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
-                    {p.displayName ?? `Patient ${p.uid?.slice(-6)}`}
+                    {p.displayName ?? p.email ?? `Patient ${p.uid?.slice(-6)}`}
                   </p>
-                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                    {p.age ? `Age ${p.age}` : ''}
-                    {p.gender ? ` · ${p.gender}` : ''}
+                  <p className="text-xs flex flex-wrap gap-x-1.5" style={{ color: 'var(--text-muted)' }}>
+                    {p.email && p.displayName && <span>{p.email}</span>}
+                    {p.age ? <span>Age {p.age}</span> : null}
+                    {p.gender ? <span>{p.gender}</span> : null}
+                    {!p.hasProfile && <span>Profile not completed</span>}
                   </p>
                 </div>
                 <button
@@ -502,24 +504,300 @@ function UsersPanel({
   )
 }
 
+function getInitialEditFields(target: EditableItem | null): Record<string, string> {
+  if (!target) return {}
+
+  if (target.kind === 'hospital') {
+    const item = target.item
+    return {
+      name: item.name ?? '',
+      email: item.email ?? '',
+      status: item.status ?? 'pending',
+      address: item.address ?? item.cms_data?.address ?? '',
+      phone: item.phone ?? item.cms_data?.phone_number ?? '',
+      type: item.type ?? item.cms_data?.hospital_type ?? '',
+      er_status: item.er_status ?? '',
+      services: csv(item.services),
+      lat: item.lat?.toString() ?? '',
+      lng: item.lng?.toString() ?? '',
+    }
+  }
+
+  if (target.kind === 'doctor') {
+    const item = target.item
+    return {
+      displayName: item.displayName ?? item.name ?? item.npi_data?.name ?? '',
+      npi: item.npi ?? '',
+      specialty: item.specialty ?? item.npi_data?.specialty ?? '',
+      credentials: item.credentials ?? item.npi_data?.credential ?? '',
+      address: item.address ?? item.npi_data?.practiceAddress ?? '',
+      bio: item.bio ?? '',
+      verified: item.verified ? 'true' : 'false',
+      affiliatedHospitalId: item.affiliatedHospitalId ?? '',
+      languages: csv(item.languages),
+      acceptedInsurance: csv(item.acceptedInsurance),
+      lat: item.lat?.toString() ?? '',
+      lng: item.lng?.toString() ?? '',
+    }
+  }
+
+  if (target.kind === 'patient') {
+    const item = target.item
+    return {
+      displayName: item.displayName ?? '',
+      age: item.age?.toString() ?? '',
+      gender: item.gender ?? 'prefer_not_to_say',
+      height: item.height ?? '',
+      weight: item.weight ?? '',
+      emergencyContact: item.emergencyContact ?? '',
+      allergies: csv(item.allergies),
+      medications: csv(item.medications),
+      knownDiseases: csv(item.knownDiseases),
+      pastMedications: csv(item.pastMedications),
+      lat: item.lat?.toString() ?? '',
+      lng: item.lng?.toString() ?? '',
+    }
+  }
+
+  return {
+    email: target.item.email ?? '',
+    role: target.item.role ?? 'patient',
+  }
+}
+
+function AdminEditModal({
+  target,
+  onClose,
+}: {
+  target: EditableItem | null
+  onClose: () => void
+}) {
+  const [editFields, setEditFields] = useState<Record<string, string>>(() => getInitialEditFields(target))
+  const [savingEdit, setSavingEdit] = useState(false)
+
+  useEffect(() => {
+    setEditFields(getInitialEditFields(target))
+  }, [target])
+
+  function updateEditField(key: string, value: string) {
+    setEditFields((current) => ({ ...current, [key]: value }))
+  }
+
+  async function handleSaveEdit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!target) return
+
+    setSavingEdit(true)
+    try {
+      if (target.kind === 'hospital') {
+        const lat = optionalNumber(editFields.lat ?? '')
+        const lng = optionalNumber(editFields.lng ?? '')
+        await updateDoc(doc(db, 'hospitals', target.item.id), {
+          name: editFields.name?.trim() ?? '',
+          email: editFields.email?.trim() ?? '',
+          status: editFields.status,
+          address: editFields.address?.trim() ?? '',
+          phone: editFields.phone?.trim() ?? '',
+          type: editFields.type?.trim() ?? '',
+          er_status: editFields.er_status || null,
+          services: splitCsv(editFields.services ?? ''),
+          lat: lat ?? deleteField(),
+          lng: lng ?? deleteField(),
+          updatedAt: serverTimestamp(),
+        })
+      } else if (target.kind === 'doctor') {
+        const lat = optionalNumber(editFields.lat ?? '')
+        const lng = optionalNumber(editFields.lng ?? '')
+        await updateDoc(doc(db, 'doctors', target.item.id), {
+          displayName: editFields.displayName?.trim() ?? '',
+          name: editFields.displayName?.trim() ?? '',
+          npi: editFields.npi?.trim() ?? '',
+          specialty: editFields.specialty?.trim() ?? '',
+          credentials: editFields.credentials?.trim() ?? '',
+          address: editFields.address?.trim() ?? '',
+          bio: editFields.bio?.trim() ?? '',
+          verified: editFields.verified === 'true',
+          affiliatedHospitalId: editFields.affiliatedHospitalId?.trim() || null,
+          languages: splitCsv(editFields.languages ?? ''),
+          acceptedInsurance: splitCsv(editFields.acceptedInsurance ?? ''),
+          lat: lat ?? deleteField(),
+          lng: lng ?? deleteField(),
+          updatedAt: serverTimestamp(),
+        })
+      } else if (target.kind === 'patient') {
+        const age = optionalNumber(editFields.age ?? '')
+        const lat = optionalNumber(editFields.lat ?? '')
+        const lng = optionalNumber(editFields.lng ?? '')
+        await setDoc(doc(db, 'patients', target.item.id), {
+          uid: target.item.uid,
+          displayName: editFields.displayName?.trim() ?? '',
+          age: age ?? deleteField(),
+          gender: editFields.gender,
+          height: editFields.height?.trim() ?? '',
+          weight: editFields.weight?.trim() ?? '',
+          emergencyContact: editFields.emergencyContact?.trim() ?? '',
+          allergies: splitCsv(editFields.allergies ?? ''),
+          medications: splitCsv(editFields.medications ?? ''),
+          knownDiseases: splitCsv(editFields.knownDiseases ?? ''),
+          pastMedications: splitCsv(editFields.pastMedications ?? ''),
+          lat: lat ?? deleteField(),
+          lng: lng ?? deleteField(),
+          updatedAt: serverTimestamp(),
+        }, { merge: true })
+      } else {
+        await updateDoc(doc(db, 'users', target.item.id), {
+          email: editFields.email?.trim() ?? '',
+          role: editFields.role as Role,
+          updatedAt: serverTimestamp(),
+        })
+      }
+      toast.success('Changes saved.')
+      onClose()
+    } catch {
+      toast.error('Could not save changes.')
+    } finally {
+      setSavingEdit(false)
+    }
+  }
+
+  return (
+    <Modal
+      open={target !== null}
+      onClose={onClose}
+      title={target ? `Edit ${target.kind}` : 'Edit record'}
+      maxWidth="lg"
+    >
+      <form onSubmit={handleSaveEdit} className="space-y-4">
+        {target?.kind === 'hospital' && (
+          <>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Input label="Hospital name" value={editFields.name ?? ''} onChange={(e) => updateEditField('name', e.target.value)} />
+              <Input label="Email" type="email" value={editFields.email ?? ''} onChange={(e) => updateEditField('email', e.target.value)} />
+              <Select label="Status" options={hospitalStatusOptions} value={editFields.status ?? 'pending'} onChange={(e) => updateEditField('status', e.target.value)} />
+              <Select label="ER status" options={erStatusOptions} value={editFields.er_status ?? ''} onChange={(e) => updateEditField('er_status', e.target.value)} />
+              <Input label="Phone" value={editFields.phone ?? ''} onChange={(e) => updateEditField('phone', e.target.value)} />
+              <Input label="Hospital type" value={editFields.type ?? ''} onChange={(e) => updateEditField('type', e.target.value)} />
+              <Input label="Latitude" type="number" value={editFields.lat ?? ''} onChange={(e) => updateEditField('lat', e.target.value)} />
+              <Input label="Longitude" type="number" value={editFields.lng ?? ''} onChange={(e) => updateEditField('lng', e.target.value)} />
+            </div>
+            <Input label="Address" value={editFields.address ?? ''} onChange={(e) => updateEditField('address', e.target.value)} />
+            <Textarea label="Services" helperText="Comma separated" value={editFields.services ?? ''} onChange={(e) => updateEditField('services', e.target.value)} />
+          </>
+        )}
+
+        {target?.kind === 'doctor' && (
+          <>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Input label="Display name" value={editFields.displayName ?? ''} onChange={(e) => updateEditField('displayName', e.target.value)} />
+              <Input label="NPI" value={editFields.npi ?? ''} onChange={(e) => updateEditField('npi', e.target.value)} />
+              <Input label="Specialty" value={editFields.specialty ?? ''} onChange={(e) => updateEditField('specialty', e.target.value)} />
+              <Input label="Credentials" value={editFields.credentials ?? ''} onChange={(e) => updateEditField('credentials', e.target.value)} />
+              <Select
+                label="Verification"
+                options={[{ value: 'true', label: 'Verified' }, { value: 'false', label: 'Unverified' }]}
+                value={editFields.verified ?? 'false'}
+                onChange={(e) => updateEditField('verified', e.target.value)}
+              />
+              <Input label="Affiliated hospital ID" value={editFields.affiliatedHospitalId ?? ''} onChange={(e) => updateEditField('affiliatedHospitalId', e.target.value)} />
+              <Input label="Latitude" type="number" value={editFields.lat ?? ''} onChange={(e) => updateEditField('lat', e.target.value)} />
+              <Input label="Longitude" type="number" value={editFields.lng ?? ''} onChange={(e) => updateEditField('lng', e.target.value)} />
+            </div>
+            <Input label="Address" value={editFields.address ?? ''} onChange={(e) => updateEditField('address', e.target.value)} />
+            <Textarea label="Bio" value={editFields.bio ?? ''} onChange={(e) => updateEditField('bio', e.target.value)} />
+            <Textarea label="Languages" helperText="Comma separated" value={editFields.languages ?? ''} onChange={(e) => updateEditField('languages', e.target.value)} />
+            <Textarea label="Accepted insurance" helperText="Comma separated" value={editFields.acceptedInsurance ?? ''} onChange={(e) => updateEditField('acceptedInsurance', e.target.value)} />
+          </>
+        )}
+
+        {target?.kind === 'patient' && (
+          <>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Input label="Display name" value={editFields.displayName ?? ''} onChange={(e) => updateEditField('displayName', e.target.value)} />
+              <Input label="Age" type="number" value={editFields.age ?? ''} onChange={(e) => updateEditField('age', e.target.value)} />
+              <Select label="Gender" options={genderOptions} value={editFields.gender ?? 'prefer_not_to_say'} onChange={(e) => updateEditField('gender', e.target.value)} />
+              <Input label="Emergency contact" value={editFields.emergencyContact ?? ''} onChange={(e) => updateEditField('emergencyContact', e.target.value)} />
+              <Input label="Height" value={editFields.height ?? ''} onChange={(e) => updateEditField('height', e.target.value)} />
+              <Input label="Weight" value={editFields.weight ?? ''} onChange={(e) => updateEditField('weight', e.target.value)} />
+              <Input label="Latitude" type="number" value={editFields.lat ?? ''} onChange={(e) => updateEditField('lat', e.target.value)} />
+              <Input label="Longitude" type="number" value={editFields.lng ?? ''} onChange={(e) => updateEditField('lng', e.target.value)} />
+            </div>
+            <Textarea label="Allergies" helperText="Comma separated" value={editFields.allergies ?? ''} onChange={(e) => updateEditField('allergies', e.target.value)} />
+            <Textarea label="Medications" helperText="Comma separated" value={editFields.medications ?? ''} onChange={(e) => updateEditField('medications', e.target.value)} />
+            <Textarea label="Known diseases" helperText="Comma separated" value={editFields.knownDiseases ?? ''} onChange={(e) => updateEditField('knownDiseases', e.target.value)} />
+            <Textarea label="Past medications" helperText="Comma separated" value={editFields.pastMedications ?? ''} onChange={(e) => updateEditField('pastMedications', e.target.value)} />
+          </>
+        )}
+
+        {target?.kind === 'user' && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Input label="Email" type="email" value={editFields.email ?? ''} onChange={(e) => updateEditField('email', e.target.value)} />
+            <Select label="Role" options={roleOptions} value={editFields.role ?? 'patient'} onChange={(e) => updateEditField('role', e.target.value)} />
+          </div>
+        )}
+
+        <div className="sticky bottom-0 -mx-6 flex justify-end gap-2 border-t px-6 pt-4 pb-1 backdrop-blur-md" style={{ background: 'var(--bg-elevated)', borderColor: 'var(--border-subtle)' }}>
+          <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button type="submit" loading={savingEdit}>Save changes</Button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 
 export default function AdminDashboard() {
   const [tab, setTab] = useState<Tab>('overview')
   const [processing, setProcessing] = useState<string | null>(null)
+  const [editTarget, setEditTarget] = useState<EditableItem | null>(null)
 
   const { data: pending, loading: pLoad } = useFirestoreCollection<Hospital>('hospitals', [where('status', '==', 'pending')])
   const { data: approved, loading: aLoad } = useFirestoreCollection<Hospital>('hospitals', [where('status', '==', 'approved')])
   const { data: doctors, loading: dLoad } = useFirestoreCollection<Doctor>('doctors', [])
   const { data: patients, loading: patLoad } = useFirestoreCollection<Patient>('patients', [])
+  const { data: users, loading: uLoad } = useFirestoreCollection<User>('users', [])
+  const adminPatients = useMemo(() => {
+    const patientsById = new Map<string, AdminPatient>()
+    const usersById = new Map(users.map((user) => [user.id, user]))
+    const hospitalIds = new Set([...pending, ...approved].map((hospital) => hospital.id))
+    const doctorIds = new Set(doctors.map((doctor) => doctor.id))
 
-  const statsLoading = pLoad || aLoad || dLoad
+    patients.forEach((profile) => {
+      const user = usersById.get(profile.id)
+      const profileEmail = (profile as Patient & { email?: string }).email
+      patientsById.set(profile.id, {
+        ...profile,
+        id: profile.id,
+        uid: profile.uid ?? profile.id,
+        email: profileEmail ?? user?.email,
+        hasProfile: true,
+      })
+    })
+
+    users.forEach((user) => {
+      const hasProviderRecord = hospitalIds.has(user.id) || doctorIds.has(user.id)
+      const isPatientAccount = user.role === 'patient' || (!hasProviderRecord && user.role !== 'admin')
+      if (!isPatientAccount || patientsById.has(user.id)) return
+
+      patientsById.set(user.id, {
+        id: user.id,
+        uid: user.id,
+        email: user.email,
+        hasProfile: false,
+      })
+    })
+
+    return Array.from(patientsById.values())
+  }, [approved, doctors, patients, pending, users])
+
+  const statsLoading = pLoad || aLoad || dLoad || patLoad || uLoad
 
   const tabs: { value: Tab; label: string; icon: React.ReactNode; count?: number }[] = [
     { value: 'overview', label: 'Overview', icon: <LayoutDashboard size={15} strokeWidth={1.75} /> },
     { value: 'hospitals', label: 'Hospitals', icon: <Building2 size={15} strokeWidth={1.75} />, count: (pending.length + approved.length) },
     { value: 'doctors', label: 'Doctors', icon: <Stethoscope size={15} strokeWidth={1.75} />, count: doctors.length },
-    { value: 'patients', label: 'Patients', icon: <Users size={15} strokeWidth={1.75} />, count: patients.length },
+    { value: 'patients', label: 'Patients', icon: <Users size={15} strokeWidth={1.75} />, count: adminPatients.length },
+    { value: 'users', label: 'Users', icon: <Users size={15} strokeWidth={1.75} />, count: users.length },
   ]
 
   async function handleApprove(hospital: Hospital & { id: string }) {
@@ -622,7 +900,7 @@ export default function AdminDashboard() {
                 pending={pending as (Hospital & { id: string })[]}
                 approved={approved as (Hospital & { id: string })[]}
                 doctors={doctors as (Doctor & { id: string })[]}
-                patients={patients as (Patient & { id: string })[]}
+                patients={adminPatients}
                 onApprove={handleApprove}
                 onDeny={handleDeny}
                 processing={processing}
@@ -645,6 +923,7 @@ export default function AdminDashboard() {
                 approved={approved as (Hospital & { id: string })[]}
                 onApprove={handleApprove}
                 onDeny={handleDeny}
+                onEdit={(hospital) => setEditTarget({ kind: 'hospital', item: hospital })}
                 processing={processing}
               />
             )}
@@ -660,7 +939,10 @@ export default function AdminDashboard() {
             transition={{ duration: 0.18 }}
           >
             {dLoad ? <SkeletonList count={3} /> : (
-              <DoctorsPanel doctors={doctors as (Doctor & { id: string })[]} />
+              <DoctorsPanel
+                doctors={doctors as (Doctor & { id: string })[]}
+                onEdit={(doctor) => setEditTarget({ kind: 'doctor', item: doctor })}
+              />
             )}
           </motion.div>
         )}
@@ -674,12 +956,31 @@ export default function AdminDashboard() {
             transition={{ duration: 0.18 }}
           >
             <PatientsPanel
-              patients={patients as (Patient & { id: string })[]}
-              loading={patLoad}
+              patients={adminPatients}
+              loading={patLoad || uLoad}
+              onEdit={(patient) => setEditTarget({ kind: 'patient', item: patient })}
+            />
+          </motion.div>
+        )}
+
+        {tab === 'users' && (
+          <motion.div
+            key="users"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.18 }}
+          >
+            <UsersPanel
+              users={users as (User & { id: string })[]}
+              loading={uLoad}
+              onEdit={(user) => setEditTarget({ kind: 'user', item: user })}
             />
           </motion.div>
         )}
       </AnimatePresence>
+
+      <AdminEditModal target={editTarget} onClose={() => setEditTarget(null)} />
     </div>
   )
 }
