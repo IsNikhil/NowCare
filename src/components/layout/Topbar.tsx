@@ -22,12 +22,12 @@ export default function Topbar({ onMenuToggle }: { onMenuToggle?: () => void }) 
 
   return (
     <header
-      className="h-14 md:h-16 flex items-center justify-between px-4 md:px-6 shrink-0 sticky top-0 z-20"
+      className="h-16 flex items-center justify-between px-4 md:px-8 shrink-0 sticky top-0 z-20"
       style={{
-        background: 'var(--bg-elevated)',
+        background: 'hsla(195,25%,8%,0.72)',
         borderBottom: '1px solid var(--border-subtle)',
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
+        backdropFilter: 'blur(20px) saturate(160%)',
+        WebkitBackdropFilter: 'blur(20px) saturate(160%)',
       }}
     >
       <button
@@ -39,10 +39,14 @@ export default function Topbar({ onMenuToggle }: { onMenuToggle?: () => void }) 
         <Menu size={20} strokeWidth={1.75} />
       </button>
 
-      <div className="hidden lg:flex items-center gap-1.5">
+      <div className="hidden lg:flex items-center gap-2">
         <div
-          className="w-6 h-6 rounded-lg flex items-center justify-center text-white text-xs font-bold mr-1"
-          style={{ background: 'linear-gradient(135deg, var(--accent-teal), hsl(168,76%,55%))' }}
+          className="w-6 h-6 rounded-lg flex items-center justify-center text-xs font-black"
+          style={{
+            background: 'linear-gradient(135deg, var(--accent-teal), hsl(168,76%,62%))',
+            color: '#031617',
+            boxShadow: '0 4px 14px -4px var(--accent-teal-glow), inset 0 1px 0 rgba(255,255,255,.25)',
+          }}
         >
           N
         </div>
@@ -58,9 +62,7 @@ export default function Topbar({ onMenuToggle }: { onMenuToggle?: () => void }) 
           </Badge>
         )}
 
-        <div
-          className="flex items-center gap-2 px-2 py-1.5 rounded-xl cursor-pointer hover:bg-[var(--surface-tint)] transition-colors"
-        >
+        <div className="flex items-center gap-2 px-2 py-1.5 rounded-xl cursor-pointer hover:bg-[var(--surface-tint)] transition-colors">
           <div
             className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold text-white shrink-0"
             style={{ background: 'linear-gradient(135deg, var(--accent-teal), var(--accent-violet))' }}

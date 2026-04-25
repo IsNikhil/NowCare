@@ -1,321 +1,538 @@
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { motion } from 'framer-motion'
 import {
-  Stethoscope,
   Activity,
-  ClipboardList,
-  User,
-  Building2,
-  ChevronRight,
-  Scan,
-  Brain,
-  HeartPulse,
-  FileText,
-  Shield,
   ArrowRight,
+  Building2,
+  CalendarDays,
+  Check,
+  Clock,
+  FileText,
+  Leaf,
+  MapPin,
+  Scan,
+  Shield,
+  Sparkles,
+  Stethoscope,
+  User,
+  Video,
+  Siren,
+  Loader2,
 } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
-import { GlassCard } from '../../components/ui/GlassCard'
-import { ThemeToggle } from '../../components/ui/ThemeToggle'
-import { fadeRise, stagger } from '../../lib/motion'
 
-export default function LandingPage() {
+const careCategories = [
+  {
+    id: 'ER_NOW',
+    headline: 'Go to the ER now',
+    sub: 'Immediate attention needed. Call 911 or get to the nearest emergency department.',
+    icon: Siren,
+    color: 'var(--accent-coral)',
+    urgency: 'Immediate',
+  },
+  {
+    id: 'URGENT_TODAY',
+    headline: 'See a doctor today',
+    sub: 'Same-day availability with a doctor or your nearest urgent care center.',
+    icon: Clock,
+    color: 'var(--accent-amber)',
+    urgency: 'Today',
+  },
+  {
+    id: 'SCAN_NEEDED',
+    headline: 'Get a scan',
+    sub: "A scan helps your provider see what's going on. We'll find the nearest open slot.",
+    icon: Scan,
+    color: 'var(--accent-violet)',
+    urgency: 'Soon',
+  },
+  {
+    id: 'TELEHEALTH',
+    headline: 'Try telehealth',
+    sub: 'A video or phone consultation may be enough. Faster than a clinic visit.',
+    icon: Video,
+    color: 'var(--accent-teal)',
+    urgency: 'Remote',
+  },
+  {
+    id: 'SCHEDULE_DOCTOR',
+    headline: 'Schedule with a doctor',
+    sub: 'Not urgent, but worth seeing a verified provider in the next few days.',
+    icon: CalendarDays,
+    color: 'hsl(168, 76%, 60%)',
+    urgency: 'Routine',
+  },
+  {
+    id: 'SELF_CARE',
+    headline: 'Take care at home',
+    sub: 'This can likely be managed at home. Here is what to watch for.',
+    icon: Leaf,
+    color: 'var(--accent-green)',
+    urgency: 'At home',
+  },
+]
+
+const demoQueries = [
+  {
+    q: 'Stuffy nose and mild headache for 2 days',
+    cat: 'TELEHEALTH',
+    reason: 'Routine symptoms. A video visit can confirm next steps and help you decide whether in-person care is needed.',
+  },
+  {
+    q: 'Sharp pain lower right side for 6 hours, slight fever',
+    cat: 'URGENT_TODAY',
+    reason: 'Combined pain and fever warrant same-day evaluation. Four urgent care options are within five miles.',
+  },
+  {
+    q: 'Persistent shortness of breath at rest, chest tightness',
+    cat: 'ER_NOW',
+    reason: 'These symptoms can signal a serious event. Call 911 or go to the ER now.',
+  },
+  {
+    q: 'Knee pain after a fall last week, hard to bear weight',
+    cat: 'SCAN_NEEDED',
+    reason: 'An imaging scan can help a provider rule out an injury. Three hospitals have scan slots open today.',
+  },
+]
+
+function Logo({ size = 32 }: { size?: number }) {
   return (
-    <div className="min-h-screen" style={{ background: 'var(--bg-base)' }}>
-      {/* Aurora background */}
-      <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none" aria-hidden>
-        <div
-          className="aurora-1 absolute -top-[20%] -left-[10%] w-[70vw] h-[70vh] rounded-full blur-3xl"
-          style={{ background: 'radial-gradient(ellipse, var(--accent-teal-glow), transparent 70%)', opacity: 0.6 }}
-        />
-        <div
-          className="aurora-2 absolute top-[40%] -right-[15%] w-[60vw] h-[60vh] rounded-full blur-3xl"
-          style={{ background: 'radial-gradient(ellipse, hsla(265,70%,65%,0.2), transparent 70%)' }}
-        />
-        <div
-          className="aurora-3 absolute -bottom-[20%] left-[30%] w-[80vw] h-[50vh] rounded-full blur-3xl"
-          style={{ background: 'radial-gradient(ellipse, var(--accent-teal-glow), transparent 70%)', opacity: 0.3 }}
-        />
-      </div>
-
-      {/* Nav */}
-      <nav className="fixed top-0 left-0 right-0 z-40 h-16 flex items-center justify-between px-6 md:px-12"
+    <div className="flex items-center gap-2.5">
+      <div
+        className="flex items-center justify-center font-black tracking-tight"
         style={{
-          background: 'var(--bg-glass)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          borderBottom: '1px solid var(--border-subtle)',
+          width: size,
+          height: size,
+          borderRadius: Math.max(8, size * 0.31),
+          background: 'linear-gradient(135deg, var(--accent-teal), hsl(168,76%,62%))',
+          color: '#031617',
+          fontSize: size * 0.5,
+          boxShadow: '0 6px 20px -4px var(--accent-teal-glow), inset 0 1px 0 rgba(255,255,255,.25)',
         }}
       >
-        <div className="flex items-center gap-2">
-          <div
-            className="w-8 h-8 rounded-xl flex items-center justify-center text-white font-bold text-sm"
-            style={{ background: 'linear-gradient(135deg, var(--accent-teal), hsl(168,76%,55%))' }}
-          >
-            N
-          </div>
-          <span className="text-lg font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>NowCare</span>
+        N
+      </div>
+      <span className="text-lg font-extrabold tracking-tight text-[var(--text-primary)]">NowCare</span>
+    </div>
+  )
+}
+
+function Aurora() {
+  return (
+    <div aria-hidden className="absolute inset-0 overflow-hidden pointer-events-none">
+      <div
+        className="aurora-1 absolute -top-[20%] -left-[10%] h-[70vh] w-[70vw] rounded-full blur-3xl"
+        style={{ background: 'radial-gradient(ellipse, var(--accent-teal-glow), transparent 70%)', opacity: 0.55 }}
+      />
+      <div
+        className="aurora-2 absolute top-[30%] -right-[15%] h-[60vh] w-[60vw] rounded-full blur-3xl"
+        style={{ background: 'radial-gradient(ellipse, hsla(265,70%,65%,0.22), transparent 70%)' }}
+      />
+      <div
+        className="aurora-3 absolute -bottom-[25%] left-1/4 h-[50vh] w-[80vw] rounded-full blur-3xl"
+        style={{ background: 'radial-gradient(ellipse, var(--accent-teal-glow), transparent 70%)', opacity: 0.28 }}
+      />
+    </div>
+  )
+}
+
+function LiveDemo() {
+  const [idx, setIdx] = useState(0)
+  const [typed, setTyped] = useState('')
+  const [phase, setPhase] = useState<'typing' | 'thinking' | 'result'>('typing')
+  const timerRef = useRef<number | null>(null)
+
+  const demo = demoQueries[idx]
+  const category = careCategories.find((c) => c.id === demo.cat) ?? careCategories[3]
+  const Icon = category.icon
+
+  useEffect(() => {
+    let i = 0
+    setTyped('')
+    setPhase('typing')
+
+    const type = () => {
+      if (i <= demo.q.length) {
+        setTyped(demo.q.slice(0, i))
+        i += 1
+        timerRef.current = window.setTimeout(type, 36)
+        return
+      }
+
+      setPhase('thinking')
+      timerRef.current = window.setTimeout(() => {
+        setPhase('result')
+        timerRef.current = window.setTimeout(() => setIdx((x) => (x + 1) % demoQueries.length), 4500)
+      }, 1100)
+    }
+
+    timerRef.current = window.setTimeout(type, 500)
+    return () => {
+      if (timerRef.current) window.clearTimeout(timerRef.current)
+    }
+  }, [demo.q])
+
+  return (
+    <div className="glass-card-elevated relative overflow-hidden p-6">
+      <div
+        aria-hidden
+        className="absolute -right-20 -top-20 h-64 w-64 rounded-full blur-2xl transition-colors"
+        style={{ background: `color-mix(in oklch, ${category.color} 24%, transparent)` }}
+      />
+
+      <div className="relative mb-5 flex items-center gap-3">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--accent-teal-glow)]">
+          <Stethoscope size={16} strokeWidth={1.75} className="text-[var(--accent-teal)]" />
         </div>
-        <div className="flex items-center gap-3">
-          <ThemeToggle />
-          <Link to="/login">
-            <Button variant="secondary" size="sm">Sign in</Button>
+        <div>
+          <div className="text-sm font-bold tracking-tight text-[var(--text-primary)]">AI Symptom Assessment</div>
+          <div className="mt-0.5 flex items-center gap-1.5 text-[11px] font-medium text-[var(--text-muted)]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-green)] pulse-glow" />
+            Powered by Gemini · Live
+          </div>
+        </div>
+        <div className="ml-auto font-mono text-[11px] tracking-wider text-[var(--text-muted)]">v2.0</div>
+      </div>
+
+      <div className="relative mb-3 min-h-12 rounded-[14px_14px_4px_14px] border border-[var(--border-subtle)] bg-[var(--surface-tint)] px-4 py-3 text-sm leading-relaxed text-[var(--text-primary)]">
+        <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Patient describes</div>
+        {typed || <span className="text-[var(--text-muted)]">Describe your symptoms...</span>}
+        {phase === 'typing' && <span className="ml-1 inline-block h-[1.05em] w-0.5 animate-pulse rounded bg-[var(--accent-teal)] align-middle" />}
+      </div>
+
+      <div className={`${phase === 'thinking' ? 'mb-3 max-h-16 opacity-100' : 'max-h-0 opacity-0'} overflow-hidden transition-all duration-300`}>
+        <div className="flex items-center gap-2.5 rounded-[4px_14px_14px_14px] border border-[var(--border-subtle)] bg-[var(--surface-tint)] px-3.5 py-2.5 text-sm text-[var(--text-secondary)]">
+          <Loader2 size={14} strokeWidth={1.75} className="animate-spin text-[var(--accent-teal)]" />
+          Assessing symptoms...
+        </div>
+      </div>
+
+      <div className={`${phase === 'result' ? 'translate-y-0 opacity-100' : 'translate-y-2 opacity-0'} relative mb-4 transition-all duration-500`}>
+        <div
+          className="rounded-[4px_14px_14px_14px] border p-4"
+          style={{
+            background: `linear-gradient(135deg, color-mix(in oklch, ${category.color} 14%, transparent), color-mix(in oklch, ${category.color} 6%, transparent))`,
+            borderColor: `color-mix(in oklch, ${category.color} 32%, transparent)`,
+          }}
+        >
+          <div className="mb-2 flex items-center gap-2">
+            <Icon size={16} strokeWidth={2} style={{ color: category.color }} />
+            <span className="text-sm font-bold tracking-tight" style={{ color: category.color }}>{category.headline}</span>
+            <span
+              className="ml-auto rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+              style={{ background: `color-mix(in oklch, ${category.color} 16%, transparent)`, color: category.color }}
+            >
+              {category.urgency}
+            </span>
+          </div>
+          <p className="text-sm leading-relaxed text-[var(--text-secondary)]">{demo.reason}</p>
+          <div className="mt-3 flex items-center justify-between gap-2 border-t border-dashed pt-2.5" style={{ borderColor: `color-mix(in oklch, ${category.color} 32%, transparent)` }}>
+            <span className="text-[11px] italic text-[var(--text-muted)]">Recommendation only, not a diagnosis.</span>
+            <span className="flex items-center gap-1 text-xs font-bold" style={{ color: category.color }}>
+              See providers <ArrowRight size={12} />
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="relative flex flex-wrap gap-1.5">
+        {[
+          { icon: Shield, label: 'NPPES verified' },
+          { icon: Building2, label: 'CMS hospital data' },
+          { icon: Activity, label: 'Live ER status' },
+          { icon: MapPin, label: 'Near you' },
+        ].map((chip) => (
+          <div key={chip.label} className="flex items-center gap-1.5 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-tint)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--text-secondary)]">
+            <chip.icon size={11} strokeWidth={1.75} className="text-[var(--accent-teal)]" />
+            {chip.label}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+export default function LandingPage() {
+  const [scrolled, setScrolled] = useState(false)
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 30)
+    onScroll()
+    window.addEventListener('scroll', onScroll)
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  return (
+    <div className="min-h-screen overflow-hidden bg-[var(--bg-base)] text-[var(--text-primary)]">
+      <nav
+        className="fixed inset-x-0 top-0 z-50 h-16 transition-all duration-300"
+        style={{
+          background: scrolled ? 'hsla(195,25%,8%,0.78)' : 'transparent',
+          backdropFilter: scrolled ? 'blur(20px) saturate(160%)' : 'none',
+          WebkitBackdropFilter: scrolled ? 'blur(20px) saturate(160%)' : 'none',
+          borderBottom: scrolled ? '1px solid var(--border-subtle)' : '1px solid transparent',
+        }}
+      >
+        <div className="mx-auto flex h-full max-w-6xl items-center gap-6 px-5 md:px-8">
+          <Logo />
+          <div className="ml-4 hidden flex-1 gap-7 md:flex">
+            {[
+              ['Features', '#features'],
+              ['Care categories', '#care-categories'],
+              ['For providers', '#for-providers'],
+            ].map(([label, href]) => (
+              <a key={label} href={href} className="text-sm font-medium text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]">
+                {label}
+              </a>
+            ))}
+          </div>
+          <Link to="/login" className="hidden text-sm font-medium text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)] sm:block">
+            Sign in
           </Link>
-          <Link to="/signup" className="hidden sm:block">
+          <Link to="/signup">
             <Button size="sm">Get started</Button>
           </Link>
         </div>
       </nav>
 
-      {/* Hero */}
-      <section className="min-h-screen flex items-center justify-center px-4 py-32 pt-28">
-        <div className="max-w-5xl mx-auto w-full">
-          <motion.div
-            variants={stagger}
-            initial="initial"
-            animate="animate"
-            className="flex flex-col lg:flex-row items-center gap-12 lg:gap-16"
-          >
-            {/* Left content */}
-            <div className="flex-1 text-center lg:text-left">
-              <motion.h1
-                variants={fadeRise}
-                className="text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.05] mb-6"
-                style={{ color: 'var(--text-primary)' }}
-              >
-                Care,
-                <br />
-                <span className="gradient-text">found faster.</span>
-              </motion.h1>
-
-              <motion.p
-                variants={fadeRise}
-                className="text-lg md:text-xl leading-relaxed mb-8 max-w-lg mx-auto lg:mx-0"
-                style={{ color: 'var(--text-secondary)' }}
-              >
-                Describe what you are feeling and get a clear next step — see a doctor today, get a scan, try telehealth, or take care at home.
-              </motion.p>
-
-              <motion.div variants={fadeRise} className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start">
-                <Link to="/signup/patient">
-                  <Button size="lg">
-                    Start for free
-                    <ArrowRight size={18} strokeWidth={1.75} />
-                  </Button>
-                </Link>
-                <Link to="/login">
-                  <Button variant="secondary" size="lg">Sign in</Button>
-                </Link>
-              </motion.div>
-
-              <motion.div variants={fadeRise} className="flex items-center gap-6 mt-8 justify-center lg:justify-start">
-                {[
-                  { icon: <Shield size={16} strokeWidth={1.75} />, text: 'NPPES verified providers' },
-                  { icon: <Activity size={16} strokeWidth={1.75} />, text: 'Live ER status' },
-                  { icon: <Scan size={16} strokeWidth={1.75} />, text: 'Real-time scan slots' },
-                ].map((item) => (
-                  <div key={item.text} className="flex items-center gap-1.5 text-sm" style={{ color: 'var(--text-muted)' }}>
-                    <span style={{ color: 'var(--accent-teal)' }}>{item.icon}</span>
-                    <span>{item.text}</span>
-                  </div>
-                ))}
-              </motion.div>
+      <section className="relative flex min-h-screen items-center px-5 py-28 md:px-8">
+        <Aurora />
+        <div className="relative z-10 mx-auto grid w-full max-w-6xl items-center gap-12 lg:grid-cols-[1.05fr_1fr] lg:gap-16">
+          <div>
+            <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-[var(--border-strong)] bg-[var(--bg-glass)] py-1.5 pl-2 pr-4 backdrop-blur-md">
+              <span className="inline-flex items-center gap-1 rounded-full bg-[var(--accent-teal-glow)] px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-[var(--accent-teal)]">
+                <Sparkles size={11} strokeWidth={1.75} /> AI
+              </span>
+              <span className="text-xs font-medium text-[var(--text-secondary)]">AI-powered healthcare navigation</span>
             </div>
 
-            {/* Right - feature preview card */}
-            <motion.div variants={fadeRise} className="flex-1 w-full max-w-sm lg:max-w-none">
-              <GlassCard variant="elevated" className="p-6">
-                <div className="flex items-center gap-2 mb-5">
-                  <div
-                    className="w-8 h-8 rounded-lg flex items-center justify-center"
-                    style={{ background: 'var(--accent-teal-glow)' }}
-                  >
-                    <Stethoscope size={16} strokeWidth={1.75} style={{ color: 'var(--accent-teal)' }} />
+            <h1 className="mb-6 max-w-3xl text-[clamp(44px,6vw,84px)] font-black leading-none tracking-[-0.035em] text-[var(--text-primary)]">
+              Healthcare navigation,
+              <br />
+              <span className="gradient-text">reimagined.</span>
+            </h1>
+
+            <p className="mb-9 max-w-xl text-lg leading-relaxed text-[var(--text-secondary)]">
+              Describe what you're feeling. Get a clear next step in seconds: see a doctor today, get a scan, try telehealth, or take care at home. Backed by verified providers and live availability.
+            </p>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <Link to="/signup/patient">
+                <Button size="lg">
+                  Start for free <ArrowRight size={16} strokeWidth={1.75} />
+                </Button>
+              </Link>
+              <Link to="/login">
+                <Button variant="secondary" size="lg">Sign in</Button>
+              </Link>
+            </div>
+
+            <div className="mt-9 flex flex-wrap gap-6">
+              {[
+                { icon: Shield, label: 'NPPES verified providers' },
+                { icon: Activity, label: 'Live ER status' },
+                { icon: Scan, label: 'Real-time scan slots' },
+              ].map((item) => (
+                <div key={item.label} className="flex items-center gap-2 text-sm font-medium text-[var(--text-muted)]">
+                  <item.icon size={14} strokeWidth={1.75} className="text-[var(--accent-teal)]" />
+                  {item.label}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <LiveDemo />
+        </div>
+      </section>
+
+      <section id="features" className="px-5 py-24 md:px-8">
+        <div className="mx-auto max-w-6xl">
+          <div className="mb-14 text-center">
+            <p className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-[var(--accent-teal)]">How NowCare works</p>
+            <h2 className="text-4xl font-black leading-tight tracking-[-0.025em] md:text-5xl">
+              From symptoms to the right care
+              <br className="hidden sm:block" /> in under 60 seconds.
+            </h2>
+          </div>
+
+          <div className="grid gap-5 md:grid-cols-3">
+            {[
+              { n: '01', icon: Stethoscope, color: 'var(--accent-teal)', title: 'AI symptom assessment', body: 'Describe how you feel in plain language. NowCare returns a safe care recommendation across six fixed levels, never a diagnosis.' },
+              { n: '02', icon: Activity, color: 'var(--accent-amber)', title: 'Live provider availability', body: 'See real-time ER status, scan slots, and same-day openings posted by hospitals and verified clinicians.' },
+              { n: '03', icon: FileText, color: 'var(--accent-violet)', title: 'Your visit, guided', body: 'Get a pre-visit summary to bring to your provider. Upload past reports for plain-language analysis.' },
+            ].map((step) => (
+              <div key={step.n} className="glass-card-elevated p-7 transition-transform hover:-translate-y-1">
+                <div className="mb-6 font-mono text-sm font-semibold tracking-wider text-[var(--text-muted)]">{step.n} / 03</div>
+                <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl border" style={{ background: `color-mix(in oklch, ${step.color} 14%, transparent)`, borderColor: `color-mix(in oklch, ${step.color} 32%, transparent)` }}>
+                  <step.icon size={22} strokeWidth={1.75} style={{ color: step.color }} />
+                </div>
+                <h3 className="mb-2.5 text-xl font-bold tracking-tight">{step.title}</h3>
+                <p className="text-sm leading-relaxed text-[var(--text-secondary)]">{step.body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="care-categories" className="px-5 py-24 md:px-8">
+        <div className="mx-auto max-w-6xl">
+          <div className="mb-12 grid gap-8 lg:grid-cols-2 lg:items-end">
+            <div>
+              <p className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-[var(--accent-teal)]">Six care categories</p>
+              <h2 className="text-4xl font-black leading-tight tracking-[-0.025em] md:text-5xl">
+                Every result maps to one
+                <br className="hidden sm:block" /> safe, actionable next step.
+              </h2>
+            </div>
+            <p className="text-base leading-relaxed text-[var(--text-secondary)]">
+              NowCare always returns one of six fixed care levels, never a diagnosis. Each routes you to the right verified provider, hospital, scan slot, or telehealth option.
+            </p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {careCategories.map((cat) => (
+              <div key={cat.id} className="glass-card relative overflow-hidden p-5 transition-transform hover:-translate-y-1">
+                <div aria-hidden className="absolute -right-10 -top-10 h-28 w-28 rounded-full blur-2xl" style={{ background: `color-mix(in oklch, ${cat.color} 12%, transparent)` }} />
+                <div className="relative mb-5 flex items-start justify-between">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl border" style={{ background: `color-mix(in oklch, ${cat.color} 16%, transparent)`, borderColor: `color-mix(in oklch, ${cat.color} 32%, transparent)` }}>
+                    <cat.icon size={20} strokeWidth={2} style={{ color: cat.color }} />
                   </div>
-                  <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>AI Symptom Assessment</span>
+                  <span className="rounded-md px-2 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ background: `color-mix(in oklch, ${cat.color} 14%, transparent)`, color: cat.color }}>
+                    {cat.urgency}
+                  </span>
                 </div>
+                <div className="relative mb-1.5 font-mono text-[10px] font-semibold tracking-wider text-[var(--text-muted)]">{cat.id}</div>
+                <h3 className="relative mb-2 text-lg font-bold tracking-tight">{cat.headline}</h3>
+                <p className="relative text-sm leading-relaxed text-[var(--text-secondary)]">{cat.sub}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
 
-                <div
-                  className="rounded-xl p-4 mb-4 text-sm"
-                  style={{ background: 'var(--surface-tint)', color: 'var(--text-secondary)' }}
-                >
-                  "Sharp pain lower right side for 6 hours, slight fever..."
+      <section className="px-5 py-10 md:px-8">
+        <div className="glass-card-elevated relative mx-auto max-w-6xl overflow-hidden p-8 md:p-10">
+          <div aria-hidden className="absolute inset-0 opacity-40" style={{ background: 'linear-gradient(135deg, var(--accent-teal-glow), transparent 30%, hsla(265,70%,65%,0.08))' }} />
+          <div className="relative grid gap-6 md:grid-cols-4">
+            {[
+              { icon: Shield, label: 'NPPES verified', val: '2.4M+', body: 'Every doctor cross-checked against the public NPI Registry.' },
+              { icon: Building2, label: 'CMS hospital data', val: '6,090', body: "Hospital General Information from Medicare's public dataset." },
+              { icon: Activity, label: 'Live ER status', val: 'Real-time', body: 'Wait status posted directly by hospital staff.' },
+              { icon: Scan, label: 'Open scan slots', val: '<2 min', body: 'MRI, CT, X-ray, and ultrasound slots shown in real time.' },
+            ].map((item) => (
+              <div key={item.label} className="border-[var(--border-subtle)] md:border-r md:pr-6 last:border-0">
+                <div className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                  <item.icon size={16} strokeWidth={1.75} className="text-[var(--accent-teal)]" />
+                  {item.label}
                 </div>
+                <div className="mb-2 text-4xl font-black leading-none tracking-tight">{item.val}</div>
+                <p className="text-sm leading-relaxed text-[var(--text-secondary)]">{item.body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
 
-                <div
-                  className="rounded-xl p-4 mb-4 border"
-                  style={{ background: 'hsla(38,95%,60%,0.08)', borderColor: 'hsla(38,95%,60%,0.2)' }}
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <Activity size={16} strokeWidth={1.75} style={{ color: 'var(--accent-amber)' }} />
-                    <span className="text-sm font-bold" style={{ color: 'var(--accent-amber)' }}>See a doctor today</span>
-                  </div>
-                  <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                    See a doctor with same-day availability or visit your nearest urgent care center.
-                  </p>
+      <section id="for-providers" className="px-5 py-24 md:px-8">
+        <div className="mx-auto max-w-6xl">
+          <div className="mb-14 text-center">
+            <p className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-[var(--accent-teal)]">Built for everyone</p>
+            <h2 className="text-4xl font-black tracking-[-0.025em] md:text-5xl">One platform, three portals.</h2>
+          </div>
+
+          <div className="grid gap-5 lg:grid-cols-3">
+            {[
+              { icon: User, color: 'var(--accent-teal)', to: '/signup/patient', label: "I'm a patient", desc: 'Describe symptoms and find verified providers, scan slots, or telehealth in seconds.', bullets: ['AI assessment', 'Provider results', 'Pre-visit summary', 'Document analysis'] },
+              { icon: Stethoscope, color: 'var(--accent-violet)', to: '/signup/doctor', label: "I'm a doctor", desc: 'Get NPPES-verified, set availability, and connect with patients searching by specialty.', bullets: ['NPI verification', 'Availability manager', 'Telehealth toggle', 'Practice insights'] },
+              { icon: Building2, color: 'var(--accent-amber)', to: '/signup/hospital', label: "I'm a hospital", desc: 'Post live ER status and scan availability. Be discovered nationwide via CMS data.', bullets: ['ER status controls', 'MRI/scan slots', 'CMS-linked profile', 'Admin approval flow'] },
+            ].map((role) => (
+              <Link key={role.to} to={role.to} className="glass-card-elevated relative flex flex-col overflow-hidden p-7 no-underline transition-transform hover:-translate-y-1">
+                <div aria-hidden className="absolute -right-14 -top-14 h-44 w-44 rounded-full blur-3xl" style={{ background: `color-mix(in oklch, ${role.color} 16%, transparent)` }} />
+                <div className="relative mb-6 flex h-13 w-13 items-center justify-center rounded-2xl border" style={{ width: 52, height: 52, background: `color-mix(in oklch, ${role.color} 14%, transparent)`, borderColor: `color-mix(in oklch, ${role.color} 32%, transparent)` }}>
+                  <role.icon size={24} strokeWidth={1.8} style={{ color: role.color }} />
                 </div>
-
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { icon: <HeartPulse size={14} strokeWidth={1.75} />, label: 'Cardiology' },
-                    { icon: <Brain size={14} strokeWidth={1.75} />, label: 'Neurology' },
-                    { icon: <Scan size={14} strokeWidth={1.75} />, label: 'Radiology' },
-                  ].map((s) => (
-                    <div
-                      key={s.label}
-                      className="rounded-lg p-2 text-center text-xs font-medium flex flex-col items-center gap-1"
-                      style={{ background: 'var(--surface-tint)', color: 'var(--text-secondary)' }}
-                    >
-                      <span style={{ color: 'var(--accent-teal)' }}>{s.icon}</span>
-                      {s.label}
+                <h3 className="relative mb-2.5 text-2xl font-extrabold tracking-tight text-[var(--text-primary)]">{role.label}</h3>
+                <p className="relative mb-5 text-sm leading-relaxed text-[var(--text-secondary)]">{role.desc}</p>
+                <div className="relative mb-6 flex-1 space-y-2">
+                  {role.bullets.map((bullet) => (
+                    <div key={bullet} className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+                      <Check size={12} strokeWidth={2.5} style={{ color: role.color }} />
+                      {bullet}
                     </div>
                   ))}
                 </div>
-              </GlassCard>
-            </motion.div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* How it works */}
-      <section className="max-w-4xl mx-auto px-4 py-8 mb-24">
-        <motion.div
-          variants={stagger}
-          initial="initial"
-          whileInView="animate"
-          viewport={{ once: true, margin: '-100px' }}
-        >
-          <motion.h2 variants={fadeRise} className="text-3xl md:text-4xl font-extrabold tracking-tight mb-4 text-center" style={{ color: 'var(--text-primary)' }}>
-            How NowCare works
-          </motion.h2>
-          <motion.p variants={fadeRise} className="text-center mb-12 text-base" style={{ color: 'var(--text-secondary)' }}>
-            From symptoms to the right care in under 60 seconds.
-          </motion.p>
-
-          <div className="grid md:grid-cols-3 gap-6">
-            {[
-              {
-                step: '01',
-                icon: <Stethoscope size={28} strokeWidth={1.75} style={{ color: 'var(--accent-teal)' }} />,
-                title: 'AI symptom assessment',
-                body: 'Describe how you feel. NowCare recommends the right level of care in plain language using 6 fixed care categories — never a guess, never a diagnosis.',
-              },
-              {
-                step: '02',
-                icon: <Activity size={28} strokeWidth={1.75} style={{ color: 'var(--accent-amber)' }} />,
-                title: 'Live provider availability',
-                body: 'See real ER wait status and scan slots posted directly by hospitals. No guessing, no calling ahead.',
-              },
-              {
-                step: '03',
-                icon: <ClipboardList size={28} strokeWidth={1.75} style={{ color: 'var(--accent-violet)' }} />,
-                title: 'Your visit, guided',
-                body: 'Get a pre-visit summary to bring to your provider. Upload past reports for instant plain-language analysis.',
-              },
-            ].map((f, i) => (
-              <motion.div key={f.title} variants={fadeRise} style={{ transitionDelay: `${i * 100}ms` }}>
-                <GlassCard variant="interactive" className="p-6 h-full">
-                  <div className="text-3xl font-mono font-bold mb-4" style={{ color: 'var(--border-subtle)' }}>{f.step}</div>
-                  <div className="mb-4">{f.icon}</div>
-                  <h3 className="font-bold text-base mb-2" style={{ color: 'var(--text-primary)' }}>{f.title}</h3>
-                  <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{f.body}</p>
-                </GlassCard>
-              </motion.div>
+                <div className="relative flex items-center gap-1.5 text-sm font-bold" style={{ color: role.color }}>
+                  Get started <ArrowRight size={14} />
+                </div>
+              </Link>
             ))}
           </div>
-        </motion.div>
-      </section>
-
-      {/* Features strip */}
-      <section className="max-w-4xl mx-auto px-4 mb-24">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[
-            { icon: <Brain size={24} strokeWidth={1.75} style={{ color: 'var(--accent-teal)' }} />, label: 'Gemini AI assessment' },
-            { icon: <FileText size={24} strokeWidth={1.75} style={{ color: 'var(--accent-violet)' }} />, label: 'Document analysis' },
-            { icon: <Activity size={24} strokeWidth={1.75} style={{ color: 'var(--accent-amber)' }} />, label: 'Real-time ER status' },
-            { icon: <Shield size={24} strokeWidth={1.75} style={{ color: 'var(--accent-green)' }} />, label: 'NPPES verified providers' },
-          ].map((f) => (
-            <GlassCard key={f.label} className="p-4 flex flex-col items-center gap-2 text-center">
-              {f.icon}
-              <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{f.label}</span>
-            </GlassCard>
-          ))}
         </div>
       </section>
 
-      {/* Who are you */}
-      <section className="max-w-3xl mx-auto px-4 pb-24">
-        <motion.div
-          variants={stagger}
-          initial="initial"
-          whileInView="animate"
-          viewport={{ once: true, margin: '-80px' }}
-        >
-          <motion.h2 variants={fadeRise} className="text-3xl font-extrabold tracking-tight mb-8" style={{ color: 'var(--text-primary)' }}>
-            Who are you?
-          </motion.h2>
-          <div className="flex flex-col gap-3">
+      <section className="px-5 py-24 md:px-8">
+        <div className="glass-card-elevated relative mx-auto max-w-5xl overflow-hidden border-[var(--border-strong)] px-6 py-16 text-center md:px-12">
+          <div aria-hidden className="absolute left-1/2 top-[-50%] h-[600px] w-[600px] -translate-x-1/2 rounded-full blur-3xl" style={{ background: 'radial-gradient(circle, var(--accent-teal-glow), transparent 60%)', opacity: 0.6 }} />
+          <div className="relative">
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[var(--border-strong)] bg-[var(--surface-tint)] px-3.5 py-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-green)] pulse-glow" />
+              <span className="text-xs font-medium text-[var(--text-secondary)]">Free care navigation · Verified providers</span>
+            </div>
+            <h2 className="mb-5 text-[clamp(40px,5vw,72px)] font-black leading-none tracking-[-0.035em]">
+              Navigate to the <span className="gradient-text">right care</span>,
+              <br />
+              faster.
+            </h2>
+            <p className="mx-auto mb-9 max-w-xl text-lg leading-relaxed text-[var(--text-secondary)]">
+              Start a free assessment. Find verified providers, live ER status, and open scan slots, all in one place.
+            </p>
+            <div className="flex flex-wrap justify-center gap-3">
+              <Link to="/signup/patient">
+                <Button size="lg">Start for free <ArrowRight size={16} strokeWidth={1.75} /></Button>
+              </Link>
+              <Link to="/login">
+                <Button variant="secondary" size="lg">Sign in</Button>
+              </Link>
+            </div>
+            <p className="mt-6 text-xs italic text-[var(--text-muted)]">
+              NowCare provides care navigation only. We do not diagnose, prescribe, or replace professional medical advice.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <footer className="border-t border-[var(--border-subtle)] bg-[hsla(195,30%,5%,0.5)] px-5 py-12 md:px-8">
+        <div className="mx-auto max-w-6xl">
+          <div className="mb-10 grid gap-8 md:grid-cols-[1.6fr_1fr_1.1fr_1.2fr_1fr]">
+            <div>
+              <Logo />
+              <p className="mt-3 max-w-xs text-sm leading-relaxed text-[var(--text-muted)]">
+                AI-powered healthcare navigation. Verified providers, live availability, safer next steps.
+              </p>
+            </div>
             {[
-              {
-                icon: <User size={28} strokeWidth={1.75} style={{ color: 'var(--accent-teal)' }} />,
-                label: 'I am a patient',
-                description: 'Describe your symptoms and get a clear next step in seconds.',
-                to: '/signup/patient',
-              },
-              {
-                icon: <Stethoscope size={28} strokeWidth={1.75} style={{ color: 'var(--accent-violet)' }} />,
-                label: 'I am a doctor',
-                description: 'Verify your credentials, set your availability, and connect with patients.',
-                to: '/signup/doctor',
-              },
-              {
-                icon: <Building2 size={28} strokeWidth={1.75} style={{ color: 'var(--accent-amber)' }} />,
-                label: 'I am a hospital',
-                description: 'Post live ER status, scan availability, and be found by patients nationwide.',
-                to: '/signup/hospital',
-              },
-            ].map((r) => (
-              <motion.div key={r.to} variants={fadeRise}>
-                <Link to={r.to} className="block group">
-                  <GlassCard variant="interactive" className="flex items-center gap-4 p-5">
-                    <div
-                      className="shrink-0 w-12 h-12 rounded-2xl flex items-center justify-center"
-                      style={{ background: 'var(--surface-tint)' }}
-                    >
-                      {r.icon}
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-bold" style={{ color: 'var(--text-primary)' }}>{r.label}</p>
-                      <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>{r.description}</p>
-                    </div>
-                    <ChevronRight size={20} strokeWidth={1.75} className="shrink-0 transition-transform group-hover:translate-x-1" style={{ color: 'var(--text-muted)' }} />
-                  </GlassCard>
-                </Link>
-              </motion.div>
+              ['Product', 'Features', 'Care categories', 'Live demo'],
+              ['Patients', 'Start assessment', 'Provider results', 'Pre-visit summary'],
+              ['Providers', 'For doctors', 'NPI verification', 'MRI / scan slots'],
+              ['Company', 'About', 'Privacy', 'Terms'],
+            ].map(([heading, ...links]) => (
+              <div key={heading}>
+                <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">{heading}</div>
+                {links.map((link) => (
+                  <a key={link} href="#" className="mb-2 block text-sm text-[var(--text-secondary)] no-underline transition-colors hover:text-[var(--text-primary)]">
+                    {link}
+                  </a>
+                ))}
+              </div>
             ))}
           </div>
-        </motion.div>
-      </section>
-
-      {/* Footer */}
-      <footer
-        className="py-8 px-4 text-center border-t"
-        style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-muted)' }}
-      >
-        <div className="flex items-center justify-center gap-2 mb-2">
-          <div
-            className="w-6 h-6 rounded-lg flex items-center justify-center text-white text-xs font-bold"
-            style={{ background: 'linear-gradient(135deg, var(--accent-teal), hsl(168,76%,55%))' }}
-          >
-            N
+          <div className="flex flex-wrap items-center justify-between gap-5 border-t border-[var(--border-subtle)] pt-6">
+            <span className="text-xs text-[var(--text-muted)]">© 2026 NowCare. All rights reserved.</span>
+            <span className="max-w-xl text-left text-xs italic text-[var(--text-muted)] md:text-right">
+              NowCare provides care navigation support only and does not diagnose, prescribe, or replace professional medical advice. In an emergency, call 911.
+            </span>
           </div>
-          <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>NowCare</span>
         </div>
-        <p className="text-xs">AI-powered healthcare navigation for every patient, everywhere.</p>
-        <p className="text-xs mt-1">
-          NowCare is a navigation tool, not a substitute for professional medical advice.
-          In an emergency, call 911.
-        </p>
       </footer>
     </div>
   )

@@ -61,13 +61,17 @@ export default function Sidebar({ onNavClick, iconOnly }: SidebarProps) {
   const navItems = role ? (navByRole[role] ?? []) : []
 
   return (
-    <div className={`flex flex-col h-full ${iconOnly ? 'px-3 py-4 items-center' : 'p-4'}`}>
+    <div className={`flex flex-col h-full ${iconOnly ? 'px-3 py-4 items-center' : 'px-4 py-5'}`}>
       {!iconOnly && (
-        <div className="mb-8 px-2">
+        <div className="mb-7 px-2">
           <div className="flex items-center gap-2 mb-0.5">
             <div
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold"
-              style={{ background: 'linear-gradient(135deg, var(--accent-teal), hsl(168,76%,55%))' }}
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black"
+              style={{
+                background: 'linear-gradient(135deg, var(--accent-teal), hsl(168,76%,62%))',
+                color: '#031617',
+                boxShadow: '0 4px 14px -4px var(--accent-teal-glow), inset 0 1px 0 rgba(255,255,255,.25)',
+              }}
             >
               N
             </div>
@@ -80,8 +84,12 @@ export default function Sidebar({ onNavClick, iconOnly }: SidebarProps) {
       {iconOnly && (
         <div className="mb-6">
           <div
-            className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-bold"
-            style={{ background: 'linear-gradient(135deg, var(--accent-teal), hsl(168,76%,55%))' }}
+            className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-black"
+            style={{
+              background: 'linear-gradient(135deg, var(--accent-teal), hsl(168,76%,62%))',
+              color: '#031617',
+              boxShadow: '0 4px 14px -4px var(--accent-teal-glow), inset 0 1px 0 rgba(255,255,255,.25)',
+            }}
           >
             N
           </div>
@@ -98,11 +106,11 @@ export default function Sidebar({ onNavClick, iconOnly }: SidebarProps) {
             title={iconOnly ? item.label : undefined}
             className={({ isActive }) =>
               [
-                'flex items-center rounded-xl text-sm font-medium transition-all duration-150',
+                'flex items-center rounded-[10px] text-sm transition-all duration-150 border-l-2',
                 iconOnly ? 'justify-center w-10 h-10 p-0' : 'gap-3 px-3 py-2.5',
                 isActive
-                  ? 'text-[var(--accent-teal)] bg-[var(--surface-tint)]'
-                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-tint)]',
+                  ? 'font-semibold text-[var(--text-primary)] bg-[var(--surface-tint)] border-l-[var(--accent-teal)]'
+                  : 'font-medium text-[var(--text-secondary)] border-l-transparent hover:text-[var(--text-primary)] hover:bg-[var(--surface-tint)]',
               ].join(' ')
             }
           >
