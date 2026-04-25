@@ -217,10 +217,10 @@ export default function PatientHome() {
         </div>
       </motion.div>
 
-      {/* Recent activity */}
+      {/* Recent assessments */}
       <motion.div variants={fadeRise}>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold" style={{ color: 'var(--text-secondary)' }}>Recent activity</h2>
+          <h2 className="text-sm font-semibold" style={{ color: 'var(--text-secondary)' }}>Recent assessments</h2>
           <button onClick={() => navigate('/patient/history')} className="text-xs font-semibold hover:underline" style={{ color: 'var(--accent-teal)' }}>
             View all
           </button>
@@ -234,9 +234,9 @@ export default function PatientHome() {
               <Activity size={24} strokeWidth={1.75} style={{ color: 'var(--text-muted)' }} />
             </div>
             <p className="text-sm font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>No activity yet</p>
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Your assessments and documents will appear here.</p>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Your assessments and uploaded documents will appear here.</p>
             <Button size="sm" className="mt-4" onClick={() => navigate('/patient/assess')}>
-              Start your first assessment
+              Run your first assessment
             </Button>
           </GlassCard>
         )}

@@ -214,7 +214,7 @@ export default function HospitalDashboard() {
           <p className="text-xl font-extrabold font-mono" style={{ color: 'var(--text-primary)' }}>
             {availableCount}<span className="text-sm font-normal text-[var(--text-muted)]">/{totalCount}</span>
           </p>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Imaging slots open</p>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Scan slots open</p>
         </GlassCard>
 
         <GlassCard className="p-4 col-span-2 md:col-span-1">
@@ -297,9 +297,9 @@ export default function HospitalDashboard() {
                 <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'hsla(265,70%,65%,0.1)', color: 'var(--accent-violet)' }}>
                   <Scan size={14} strokeWidth={1.75} />
                 </div>
-                <h2 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Imaging Slots</h2>
+                <h2 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Scan Slots</h2>
               </div>
-              <Link to="/hospital/mri" className="text-xs font-semibold hover:underline" style={{ color: 'var(--accent-teal)' }}>
+              <Link to="/hospital/scans" className="text-xs font-semibold hover:underline" style={{ color: 'var(--accent-teal)' }}>
                 Manage
               </Link>
             </div>
@@ -307,7 +307,7 @@ export default function HospitalDashboard() {
             {Object.keys(slotsByType).length === 0 ? (
               <div className="py-6 text-center">
                 <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No imaging slots yet.</p>
-                <Link to="/hospital/mri" className="text-xs font-semibold hover:underline mt-1 inline-block" style={{ color: 'var(--accent-teal)' }}>
+                <Link to="/hospital/scans" className="text-xs font-semibold hover:underline mt-1 inline-block" style={{ color: 'var(--accent-teal)' }}>
                   Add slots
                 </Link>
               </div>
@@ -350,7 +350,7 @@ export default function HospitalDashboard() {
                 </div>
                 <h2 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Recent Slots</h2>
               </div>
-              <Link to="/hospital/mri" className="text-xs font-semibold hover:underline" style={{ color: 'var(--accent-teal)' }}>
+              <Link to="/hospital/scans" className="text-xs font-semibold hover:underline" style={{ color: 'var(--accent-teal)' }}>
                 View all
               </Link>
             </div>

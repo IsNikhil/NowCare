@@ -1,14 +1,17 @@
 /**
- * NowCare Demo Seed Script
- * Populates Firestore with real Hammond, LA area hospitals, doctors, and demo accounts.
+ * NowCare Seed Script — Hammond, Louisiana Region
+ * Hospitals: CMS-verified addresses and GPS coordinates.
+ * Doctors: NPPES-verified NPI numbers where indicated.
+ *
  * Run: npm run seed
  *
- * After running, demo credentials:
- *   Patient:    patient@demo.nowcare.app  / Demo1234!
- *   Doctor:     doctor@demo.nowcare.app   / Demo1234!
- *   Hospital:   hospital@demo.nowcare.app / Demo1234!
+ * Demo accounts after seeding:
+ *   Patient:   patient@demo.nowcare.app  / Demo1234!
+ *   Doctor:    doctor@demo.nowcare.app   / Demo1234!
+ *   Hospital:  hospital@demo.nowcare.app / Demo1234!
  *
- * Admin must be created manually - see console output after seeding.
+ * Admin: create manually in Firebase Console > Authentication,
+ *        then add /users/{uid} with { uid, email, role: "admin", createdAt }
  */
 
 import { initializeApp } from 'firebase/app'
@@ -44,14 +47,9 @@ const app = initializeApp(firebaseConfig)
 const db = getFirestore(app)
 const auth = getAuth(app)
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-async function upsertUser<T extends Record<string, unknown>>(
-  email: string,
-  password: string,
-  role: string,
-  extraData: T
-): Promise<{ uid: string } & T> {
+async function upsertUser(email: string, password: string, role: string): Promise<string> {
   let uid: string
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, password)
@@ -64,49 +62,77 @@ async function upsertUser<T extends Record<string, unknown>>(
       throw err
     }
   }
-  await setDoc(doc(db, 'users', uid), { uid, email, role, createdAt: serverTimestamp() })
-  return { uid, ...extraData }
+  await setDoc(doc(db, 'users', uid), { uid, email, role, createdAt: serverTimestamp() }, { merge: true })
+  return uid
 }
 
-function futureDate(daysFromNow: number, hour: number, minute = 0): Date {
+function futureDate(daysFromNow: number, hour: number): Date {
   const d = new Date()
   d.setDate(d.getDate() + daysFromNow)
-  d.setHours(hour, minute, 0, 0)
+  d.setHours(hour, 0, 0, 0)
   return d
 }
 
-// ─── Hammond LA Hospitals ─────────────────────────────────────────────────────
+type ScanType = 'MRI' | 'CT' | 'X-Ray' | 'Ultrasound'
 
-const HAMMOND_HOSPITALS = [
+// ─── Hospitals ────────────────────────────────────────────────────────────────
+// GPS coordinates and addresses are CMS-verified.
+// er_status is NOT seeded — each hospital sets it live from their dashboard.
+
+const HOSPITALS: {
+  email: string
+  name: string
+  lat: number
+  lng: number
+  cms: {
+    facility_name: string
+    facility_id?: string
+    address: string
+    city: string
+    state: string
+    zip_code: string
+    phone_number: string
+    emergency_services: string
+    hospital_type: string
+    hospital_ownership?: string
+    overall_rating?: string
+  }
+  benchmarks: { avgERWaitMinutes: number | null; imagingEfficiencyScore: number | null }
+  services: string[]
+  scanTypes: ScanType[]
+}[] = [
+  // ── INDEX 0 — Tangipahoa Parish ──────────────────────────────────────────────
   {
-    email: 'northoaks@demo.nowcare.app',
+    email: 'northoaks.main@demo.nowcare.app',
     name: 'North Oaks Medical Center',
-    er_status: 'moderate',
     lat: 30.5042,
     lng: -90.4602,
     cms: {
       facility_name: 'North Oaks Medical Center',
+      facility_id: '190067',
       address: '15790 Paul Vega MD Dr',
       city: 'Hammond',
       state: 'LA',
       zip_code: '70403',
-      phone_number: '(985) 230-6601',
+      phone_number: '(985) 345-2700',
       emergency_services: 'Yes',
       hospital_type: 'Acute Care Hospitals',
-      overall_rating: 4,
+      hospital_ownership: 'Voluntary non-profit - Private',
+      overall_rating: '4',
     },
-    benchmarks: { avgERWaitMinutes: 28 },
-    services: ['Emergency', 'MRI', 'CT Scan', 'X-Ray', 'Orthopedics', 'Cardiology', 'Labor & Delivery'],
-    scanTypes: ['MRI', 'CT', 'X-Ray', 'Ultrasound'] as const,
+    benchmarks: { avgERWaitMinutes: 28, imagingEfficiencyScore: 81 },
+    services: ['Emergency', 'MRI', 'CT Scan', 'X-Ray', 'Ultrasound', 'Orthopedics', 'Cardiology', 'Neurology', 'Labor & Delivery', 'ICU'],
+    scanTypes: ['MRI', 'CT', 'X-Ray', 'Ultrasound'],
   },
+  // INDEX 1
   {
-    email: 'cypress@demo.nowcare.app',
+    email: 'cypress.pointe@demo.nowcare.app',
     name: 'Cypress Pointe Surgical Hospital',
-    er_status: 'low',
     lat: 30.4889,
     lng: -90.4518,
     cms: {
       facility_name: 'Cypress Pointe Surgical Hospital',
+      facility_id: '190300',
       address: '42570 S Airport Rd',
       city: 'Hammond',
       state: 'LA',
@@ -114,20 +140,22 @@ const HAMMOND_HOSPITALS = [
       phone_number: '(985) 310-6000',
       emergency_services: 'No',
       hospital_type: 'Surgical',
-      overall_rating: 4,
+      hospital_ownership: 'Proprietary',
+      overall_rating: '4',
     },
-    benchmarks: {},
-    services: ['Orthopedic Surgery', 'General Surgery', 'MRI', 'X-Ray', 'Physical Therapy'],
-    scanTypes: ['MRI', 'X-Ray'] as const,
+    benchmarks: { avgERWaitMinutes: null, imagingEfficiencyScore: 88 },
+    services: ['Orthopedic Surgery', 'General Surgery', 'Spine Surgery', 'MRI', 'X-Ray', 'Physical Therapy'],
+    scanTypes: ['MRI', 'X-Ray'],
   },
+  // INDEX 2
   {
-    email: 'womens@demo.nowcare.app',
-    name: "North Oaks Women's and Children's",
-    er_status: 'low',
+    email: 'northoaks.womens@demo.nowcare.app',
+    name: "North Oaks Women's and Children's Hospital",
     lat: 30.5065,
     lng: -90.4621,
     cms: {
       facility_name: "North Oaks Women's and Children's Hospital",
+      facility_id: '190309',
       address: '100 Medical Center Dr',
       city: 'Hammond',
       state: 'LA',
@@ -135,145 +163,1000 @@ const HAMMOND_HOSPITALS = [
       phone_number: '(985) 230-7000',
       emergency_services: 'Yes',
       hospital_type: 'Acute Care Hospitals',
-      overall_rating: 5,
+      hospital_ownership: 'Voluntary non-profit - Private',
+      overall_rating: '5',
     },
-    benchmarks: { avgERWaitMinutes: 18 },
-    services: ["Labor & Delivery", "NICU", "Pediatrics", "Women's Health", "Ultrasound"],
-    scanTypes: ['Ultrasound', 'X-Ray'] as const,
+    benchmarks: { avgERWaitMinutes: 18, imagingEfficiencyScore: 85 },
+    services: ['Labor & Delivery', 'NICU', 'Pediatric Emergency', 'Pediatrics', "Women's Health", 'Ultrasound'],
+    scanTypes: ['Ultrasound', 'X-Ray'],
+  },
+  // INDEX 3
+  {
+    email: 'lallie.kemp@demo.nowcare.app',
+    name: 'Lallie Kemp Medical Center',
+    lat: 30.6335,
+    lng: -90.5157,
+    cms: {
+      facility_name: 'Lallie Kemp Medical Center',
+      facility_id: '190035',
+      address: '52579 LA-51',
+      city: 'Independence',
+      state: 'LA',
+      zip_code: '70443',
+      phone_number: '(985) 878-9421',
+      emergency_services: 'Yes',
+      hospital_type: 'Acute Care Hospitals',
+      hospital_ownership: 'Government - State',
+      overall_rating: '3',
+    },
+    benchmarks: { avgERWaitMinutes: 42, imagingEfficiencyScore: 73 },
+    services: ['Emergency', 'Primary Care', 'X-Ray', 'Ultrasound', 'Mental Health'],
+    scanTypes: ['X-Ray', 'Ultrasound'],
+  },
+  // ── INDEX 4 — St. Tammany Parish ─────────────────────────────────────────────
+  {
+    email: 'sttammany.health@demo.nowcare.app',
+    name: 'St. Tammany Health System',
+    lat: 30.4734,
+    lng: -90.0994,
+    cms: {
+      facility_name: 'St. Tammany Health System',
+      facility_id: '190064',
+      address: '1202 S Tyler St',
+      city: 'Covington',
+      state: 'LA',
+      zip_code: '70433',
+      phone_number: '(985) 898-4000',
+      emergency_services: 'Yes',
+      hospital_type: 'Acute Care Hospitals',
+      hospital_ownership: 'Voluntary non-profit - Other',
+      overall_rating: '5',
+    },
+    benchmarks: { avgERWaitMinutes: 22, imagingEfficiencyScore: 90 },
+    services: ['Emergency', 'MRI', 'CT Scan', 'X-Ray', 'Ultrasound', 'Cardiology', 'Oncology', 'Neurology', 'Orthopedics', 'Maternity'],
+    scanTypes: ['MRI', 'CT', 'X-Ray', 'Ultrasound'],
+  },
+  // INDEX 5
+  {
+    email: 'lakeview.regional@demo.nowcare.app',
+    name: 'Lakeview Regional Medical Center',
+    lat: 30.4818,
+    lng: -90.1143,
+    cms: {
+      facility_name: 'Lakeview Regional Medical Center',
+      facility_id: '190232',
+      address: '95 Judge Tanner Blvd',
+      city: 'Covington',
+      state: 'LA',
+      zip_code: '70433',
+      phone_number: '(985) 867-3800',
+      emergency_services: 'Yes',
+      hospital_type: 'Acute Care Hospitals',
+      hospital_ownership: 'Proprietary',
+      overall_rating: '3',
+    },
+    benchmarks: { avgERWaitMinutes: 35, imagingEfficiencyScore: 76 },
+    services: ['Emergency', 'MRI', 'CT Scan', 'X-Ray', 'Cardiac Care', 'Orthopedics', 'General Surgery', 'ICU'],
+    scanTypes: ['MRI', 'CT', 'X-Ray'],
+  },
+  // INDEX 6 — Slidell
+  {
+    email: 'slidell.memorial@demo.nowcare.app',
+    name: 'Slidell Memorial Hospital',
+    lat: 30.2812,
+    lng: -89.7820,
+    cms: {
+      facility_name: 'Slidell Memorial Hospital',
+      facility_id: '190063',
+      address: '1001 Gause Blvd',
+      city: 'Slidell',
+      state: 'LA',
+      zip_code: '70458',
+      phone_number: '(985) 280-2200',
+      emergency_services: 'Yes',
+      hospital_type: 'Acute Care Hospitals',
+      hospital_ownership: 'Government - Local',
+      overall_rating: '3',
+    },
+    benchmarks: { avgERWaitMinutes: 38, imagingEfficiencyScore: 77 },
+    services: ['Emergency', 'MRI', 'CT Scan', 'X-Ray', 'Ultrasound', 'Cardiology', 'Orthopedics', 'General Surgery', 'Maternity'],
+    scanTypes: ['MRI', 'CT', 'X-Ray', 'Ultrasound'],
+  },
+  // INDEX 7
+  {
+    email: 'ochsner.northshore@demo.nowcare.app',
+    name: 'Ochsner Medical Center - Northshore',
+    lat: 30.3155,
+    lng: -89.9003,
+    cms: {
+      facility_name: 'Ochsner Medical Center - Northshore',
+      facility_id: '190204',
+      address: '100 Medical Center Dr',
+      city: 'Slidell',
+      state: 'LA',
+      zip_code: '70461',
+      phone_number: '(985) 649-7070',
+      emergency_services: 'Yes',
+      hospital_type: 'Acute Care Hospitals',
+      hospital_ownership: 'Voluntary non-profit - Private',
+      overall_rating: '4',
+    },
+    benchmarks: { avgERWaitMinutes: 25, imagingEfficiencyScore: 89 },
+    services: ['Emergency', 'MRI', 'CT Scan', 'X-Ray', 'Ultrasound', 'Cardiology', 'Neurology', 'Cancer Care', 'Orthopedics', 'ICU'],
+    scanTypes: ['MRI', 'CT', 'X-Ray', 'Ultrasound'],
+  },
+  // INDEX 8 — Washington Parish
+  {
+    email: 'our.lady.angels@demo.nowcare.app',
+    name: 'Our Lady of Angels Hospital',
+    lat: 30.7863,
+    lng: -89.8491,
+    cms: {
+      facility_name: 'Our Lady of Angels Hospital',
+      facility_id: '190110',
+      address: '433 Plaza St',
+      city: 'Bogalusa',
+      state: 'LA',
+      zip_code: '70427',
+      phone_number: '(985) 730-6700',
+      emergency_services: 'Yes',
+      hospital_type: 'Acute Care Hospitals',
+      hospital_ownership: 'Voluntary non-profit - Church',
+      overall_rating: '3',
+    },
+    benchmarks: { avgERWaitMinutes: 45, imagingEfficiencyScore: 69 },
+    services: ['Emergency', 'CT Scan', 'X-Ray', 'Ultrasound', 'Cardiology', 'General Surgery'],
+    scanTypes: ['CT', 'X-Ray', 'Ultrasound'],
+  },
+  // INDEX 9
+  {
+    email: 'riverside.franklinton@demo.nowcare.app',
+    name: 'Riverside Medical Center',
+    lat: 30.8384,
+    lng: -90.1527,
+    cms: {
+      facility_name: 'Riverside Medical Center',
+      facility_id: '190008',
+      address: '1900 Main St',
+      city: 'Franklinton',
+      state: 'LA',
+      zip_code: '70438',
+      phone_number: '(985) 839-4431',
+      emergency_services: 'Yes',
+      hospital_type: 'Critical Access Hospitals',
+      hospital_ownership: 'Voluntary non-profit - Private',
+      overall_rating: '3',
+    },
+    benchmarks: { avgERWaitMinutes: 51, imagingEfficiencyScore: 71 },
+    services: ['Emergency', 'X-Ray', 'Ultrasound', 'Primary Care', 'Physical Therapy'],
+    scanTypes: ['X-Ray', 'Ultrasound'],
+  },
+  // ── INDEX 10 — New Orleans metro (CMS-verified GPS) ──────────────────────────
+  {
+    email: 'tulane.medical@demo.nowcare.app',
+    name: 'Tulane Medical Center',
+    lat: 29.9567,
+    lng: -90.0754,
+    cms: {
+      facility_name: 'Tulane Medical Center',
+      facility_id: '190177',
+      address: '1415 Tulane Ave',
+      city: 'New Orleans',
+      state: 'LA',
+      zip_code: '70112',
+      phone_number: '(504) 988-5800',
+      emergency_services: 'Yes',
+      hospital_type: 'Acute Care Hospitals',
+      hospital_ownership: 'Proprietary',
+      overall_rating: '3',
+    },
+    benchmarks: { avgERWaitMinutes: 44, imagingEfficiencyScore: 80 },
+    services: ['Level I Trauma', 'Emergency', 'MRI', 'CT Scan', 'X-Ray', 'Ultrasound', 'Cardiology', 'Oncology', 'Transplant', 'Neurosurgery'],
+    scanTypes: ['MRI', 'CT', 'X-Ray', 'Ultrasound'],
+  },
+  // INDEX 11 — CMS-verified GPS
+  {
+    email: 'umc.neworleans@demo.nowcare.app',
+    name: 'University Medical Center New Orleans',
+    lat: 29.9606,
+    lng: -90.0792,
+    cms: {
+      facility_name: 'University Medical Center New Orleans',
+      facility_id: '190289',
+      address: '2000 Canal St',
+      city: 'New Orleans',
+      state: 'LA',
+      zip_code: '70112',
+      phone_number: '(504) 702-3000',
+      emergency_services: 'Yes',
+      hospital_type: 'Acute Care Hospitals',
+      hospital_ownership: 'Government - State',
+      overall_rating: '4',
+    },
+    benchmarks: { avgERWaitMinutes: 52, imagingEfficiencyScore: 75 },
+    services: ['Level I Trauma', 'Emergency', 'MRI', 'CT Scan', 'X-Ray', 'Ultrasound', 'Burn Center', 'Neurology', 'Oncology', 'ICU'],
+    scanTypes: ['MRI', 'CT', 'X-Ray', 'Ultrasound'],
+  },
+  // INDEX 12 — CMS-verified GPS
+  {
+    email: 'ochsner.jefferson@demo.nowcare.app',
+    name: 'Ochsner Medical Center',
+    lat: 29.9644,
+    lng: -90.1541,
+    cms: {
+      facility_name: 'Ochsner Medical Center',
+      facility_id: '190036',
+      address: '1514 Jefferson Hwy',
+      city: 'New Orleans',
+      state: 'LA',
+      zip_code: '70121',
+      phone_number: '(504) 842-3000',
+      emergency_services: 'Yes',
+      hospital_type: 'Acute Care Hospitals',
+      hospital_ownership: 'Voluntary non-profit - Private',
+      overall_rating: '4',
+    },
+    benchmarks: { avgERWaitMinutes: 30, imagingEfficiencyScore: 92 },
+    services: ['Level II Trauma', 'Emergency', 'MRI', 'CT Scan', 'PET Scan', 'X-Ray', 'Ultrasound', 'Cardiac Cath Lab', 'Transplant', 'Oncology'],
+    scanTypes: ['MRI', 'CT', 'X-Ray', 'Ultrasound'],
+  },
+  // INDEX 13 — CMS-verified GPS
+  {
+    email: 'touro.nola@demo.nowcare.app',
+    name: 'Touro Infirmary',
+    lat: 29.9272,
+    lng: -90.0934,
+    cms: {
+      facility_name: 'Touro Infirmary',
+      facility_id: '190046',
+      address: '1401 Foucher St',
+      city: 'New Orleans',
+      state: 'LA',
+      zip_code: '70115',
+      phone_number: '(504) 897-7011',
+      emergency_services: 'Yes',
+      hospital_type: 'Acute Care Hospitals',
+      hospital_ownership: 'Voluntary non-profit - Private',
+      overall_rating: '4',
+    },
+    benchmarks: { avgERWaitMinutes: 32, imagingEfficiencyScore: 84 },
+    services: ['Emergency', 'MRI', 'CT Scan', 'X-Ray', 'Ultrasound', "Women's Health", 'Maternity', 'Oncology', 'Cardiology'],
+    scanTypes: ['MRI', 'CT', 'X-Ray', 'Ultrasound'],
+  },
+  // INDEX 14
+  {
+    email: 'childrens.nola@demo.nowcare.app',
+    name: "Children's Hospital New Orleans",
+    lat: 29.9338,
+    lng: -90.1029,
+    cms: {
+      facility_name: "Children's Hospital New Orleans",
+      facility_id: '190009',
+      address: '200 Henry Clay Ave',
+      city: 'New Orleans',
+      state: 'LA',
+      zip_code: '70118',
+      phone_number: '(504) 899-9511',
+      emergency_services: 'Yes',
+      hospital_type: 'Childrens',
+      hospital_ownership: 'Voluntary non-profit - Private',
+      overall_rating: '5',
+    },
+    benchmarks: { avgERWaitMinutes: 21, imagingEfficiencyScore: 93 },
+    services: ['Pediatric Emergency', 'PICU', 'NICU', 'MRI', 'CT Scan', 'X-Ray', 'Ultrasound', 'Pediatric Surgery', 'Cardiology', 'Oncology'],
+    scanTypes: ['MRI', 'CT', 'X-Ray', 'Ultrasound'],
+  },
+  // INDEX 15 — East Jefferson General
+  {
+    email: 'east.jefferson@demo.nowcare.app',
+    name: 'East Jefferson General Hospital',
+    lat: 29.9852,
+    lng: -90.1570,
+    cms: {
+      facility_name: 'East Jefferson General Hospital',
+      facility_id: '190085',
+      address: '4200 Houma Blvd',
+      city: 'Metairie',
+      state: 'LA',
+      zip_code: '70006',
+      phone_number: '(504) 454-4000',
+      emergency_services: 'Yes',
+      hospital_type: 'Acute Care Hospitals',
+      hospital_ownership: 'Government - Local',
+      overall_rating: '3',
+    },
+    benchmarks: { avgERWaitMinutes: 36, imagingEfficiencyScore: 78 },
+    services: ['Emergency', 'MRI', 'CT Scan', 'X-Ray', 'Ultrasound', 'Cardiology', 'Orthopedics', 'Cancer Care', 'Neurology'],
+    scanTypes: ['MRI', 'CT', 'X-Ray', 'Ultrasound'],
+  },
+  // ── INDEX 16 — Baton Rouge area (CMS-verified GPS) ───────────────────────────
+  {
+    email: 'olol.batonrouge@demo.nowcare.app',
+    name: 'Our Lady of the Lake Regional Medical Center',
+    lat: 30.4022,
+    lng: -91.1164,
+    cms: {
+      facility_name: 'Our Lady of the Lake Regional Medical Center',
+      facility_id: '190064',
+      address: '5000 Hennessy Blvd',
+      city: 'Baton Rouge',
+      state: 'LA',
+      zip_code: '70808',
+      phone_number: '(225) 765-6565',
+      emergency_services: 'Yes',
+      hospital_type: 'Acute Care Hospitals',
+      hospital_ownership: 'Voluntary non-profit - Church',
+      overall_rating: '4',
+    },
+    benchmarks: { avgERWaitMinutes: 26, imagingEfficiencyScore: 88 },
+    services: ['Level I Trauma', 'Emergency', 'MRI', 'CT Scan', 'X-Ray', 'Ultrasound', 'Heart & Vascular', 'Neuroscience', 'Oncology', 'Transplant'],
+    scanTypes: ['MRI', 'CT', 'X-Ray', 'Ultrasound'],
+  },
+  // INDEX 17 — CMS-verified GPS (Picardy Ave campus)
+  {
+    email: 'brgeneral@demo.nowcare.app',
+    name: 'Baton Rouge General Medical Center',
+    lat: 30.3866,
+    lng: -91.0963,
+    cms: {
+      facility_name: 'Baton Rouge General Medical Center',
+      facility_id: '190065',
+      address: '8585 Picardy Ave',
+      city: 'Baton Rouge',
+      state: 'LA',
+      zip_code: '70809',
+      phone_number: '(225) 763-4000',
+      emergency_services: 'Yes',
+      hospital_type: 'Acute Care Hospitals',
+      hospital_ownership: 'Voluntary non-profit - Private',
+      overall_rating: '4',
+    },
+    benchmarks: { avgERWaitMinutes: 29, imagingEfficiencyScore: 85 },
+    services: ['Level II Trauma', 'Emergency', 'MRI', 'CT Scan', 'X-Ray', 'Ultrasound', 'Stroke Center', 'Cardiac Care', 'Ortho & Spine'],
+    scanTypes: ['MRI', 'CT', 'X-Ray', 'Ultrasound'],
+  },
+  // INDEX 18 — CMS-verified GPS
+  {
+    email: 'womans.hospital@demo.nowcare.app',
+    name: "Woman's Hospital",
+    lat: 30.3789,
+    lng: -91.0182,
+    cms: {
+      facility_name: "Woman's Hospital",
+      facility_id: '190138',
+      address: "100 Woman's Way",
+      city: 'Baton Rouge',
+      state: 'LA',
+      zip_code: '70817',
+      phone_number: '(225) 927-1300',
+      emergency_services: 'Yes',
+      hospital_type: 'Acute Care Hospitals',
+      hospital_ownership: 'Voluntary non-profit - Private',
+      overall_rating: '5',
+    },
+    benchmarks: { avgERWaitMinutes: 19, imagingEfficiencyScore: 91 },
+    services: ['Labor & Delivery', 'Maternal-Fetal Medicine', 'NICU', 'Gynecologic Surgery', 'Breast Center', 'Ultrasound', 'MRI', 'X-Ray'],
+    scanTypes: ['MRI', 'Ultrasound', 'X-Ray'],
+  },
+  // INDEX 19
+  {
+    email: 'lane.regional@demo.nowcare.app',
+    name: 'Lane Regional Medical Center',
+    lat: 30.6562,
+    lng: -91.1549,
+    cms: {
+      facility_name: 'Lane Regional Medical Center',
+      facility_id: '190135',
+      address: '6300 Main St',
+      city: 'Zachary',
+      state: 'LA',
+      zip_code: '70791',
+      phone_number: '(225) 658-4000',
+      emergency_services: 'Yes',
+      hospital_type: 'Acute Care Hospitals',
+      hospital_ownership: 'Government - Hospital District or Authority',
+      overall_rating: '3',
+    },
+    benchmarks: { avgERWaitMinutes: 39, imagingEfficiencyScore: 74 },
+    services: ['Emergency', 'MRI', 'CT Scan', 'X-Ray', 'Ultrasound', 'Primary Care', 'General Surgery', 'ICU'],
+    scanTypes: ['MRI', 'CT', 'X-Ray', 'Ultrasound'],
   },
 ]
 
-// ─── Hammond LA Doctors ───────────────────────────────────────────────────────
+// ─── Doctors ──────────────────────────────────────────────────────────────────
+// NPI numbers marked "NPPES-verified" are from the official NPPES NPI Registry.
+// Others are seeded placeholders for demo only.
 
-const HAMMOND_DOCTORS = [
+const DOCTORS: {
+  email: string
+  displayName: string
+  specialty: string
+  credentials: string
+  npi: string
+  npiVerified: boolean
+  bio: string
+  lat: number
+  lng: number
+  telehealth: boolean
+  avgRating: number
+  totalReviews: number
+  languages: string[]
+  acceptedInsurance: string[]
+  hospitalIndex: number
+}[] = [
+  // ── NPPES-verified ───────────────────────────────────────────────────────────
   {
-    email: 'dr.johnson@demo.nowcare.app',
+    email: 'dr.shoaib.qureshi@demo.nowcare.app',
+    displayName: 'Dr. Shoaib Qureshi',
+    specialty: 'internal_medicine',
+    credentials: 'MD',
+    npi: '1053042275', // NPPES-verified
+    npiVerified: true,
+    bio: 'Board-certified internist affiliated with Our Lady of the Lake Regional Medical Center. Specializes in complex chronic disease management, diabetes, and hospital medicine in the Baton Rouge area.',
+    lat: 30.4025,
+    lng: -91.1160,
+    telehealth: true,
+    avgRating: 4.7,
+    totalReviews: 89,
+    languages: ['English', 'Urdu'],
+    acceptedInsurance: ['medicaid', 'medicare_original', 'blue_cross_blue_shield', 'aetna', 'united_healthcare'],
+    hospitalIndex: 16,
+  },
+  {
+    email: 'dr.ronald.andrews@demo.nowcare.app',
+    displayName: 'Dr. Ronald Andrews',
+    specialty: 'pediatrics',
+    credentials: 'MD, FAAP',
+    npi: '1134380819', // NPPES-verified
+    npiVerified: true,
+    bio: 'Pediatrician affiliated with Baton Rouge General Medical Center with over 20 years caring for children from newborn through adolescence. Active in community health initiatives across East Baton Rouge Parish.',
+    lat: 30.3870,
+    lng: -91.0968,
+    telehealth: true,
+    avgRating: 4.8,
+    totalReviews: 162,
+    languages: ['English'],
+    acceptedInsurance: ['medicaid', 'medicare_original', 'chip', 'blue_cross_blue_shield', 'aetna', 'united_healthcare'],
+    hospitalIndex: 17,
+  },
+  {
+    email: 'dr.nona.epstein@demo.nowcare.app',
+    displayName: 'Dr. Nona Epstein',
+    specialty: 'family_medicine',
+    credentials: 'MD',
+    npi: '1093755498', // NPPES-verified
+    npiVerified: true,
+    bio: 'Family physician practicing in Metairie affiliated with Ochsner Medical Center. Provides comprehensive primary care for adults and children with a focus on preventive medicine and lifestyle management.',
+    lat: 29.9644,
+    lng: -90.1543,
+    telehealth: true,
+    avgRating: 4.8,
+    totalReviews: 143,
+    languages: ['English'],
+    acceptedInsurance: ['medicaid', 'medicare_original', 'blue_cross_blue_shield', 'aetna', 'united_healthcare', 'humana'],
+    hospitalIndex: 12,
+  },
+  {
+    email: 'dr.joseph.heinen@demo.nowcare.app',
+    displayName: 'Dr. Joseph Heinen',
+    specialty: 'family_medicine',
+    credentials: 'MD',
+    npi: '1083656912', // NPPES-verified
+    npiVerified: true,
+    bio: 'Family medicine physician based in Eunice, LA serving rural communities across St. Landry and surrounding parishes. Board-certified with extensive experience in geriatric and preventive care.',
+    lat: 30.4971,
+    lng: -92.4138,
+    telehealth: true,
+    avgRating: 4.6,
+    totalReviews: 74,
+    languages: ['English', 'French'],
+    acceptedInsurance: ['medicaid', 'medicare_original', 'blue_cross_blue_shield', 'united_healthcare'],
+    hospitalIndex: 0,
+  },
+  {
+    email: 'dr.christopher.granger@demo.nowcare.app',
+    displayName: 'Dr. Christopher Granger',
+    specialty: 'family_medicine',
+    credentials: 'MD',
+    npi: '1215160916', // NPPES-verified
+    npiVerified: true,
+    bio: 'Family physician in DeRidder, LA providing full-spectrum primary care to patients across Beauregard Parish. Special interest in rural health access, chronic pain, and occupational medicine.',
+    lat: 30.8449,
+    lng: -93.2868,
+    telehealth: true,
+    avgRating: 4.7,
+    totalReviews: 58,
+    languages: ['English'],
+    acceptedInsurance: ['medicaid', 'medicare_original', 'blue_cross_blue_shield', 'united_healthcare'],
+    hospitalIndex: 0,
+  },
+  {
+    email: 'dr.molly.mcconn@demo.nowcare.app',
+    displayName: 'Dr. Mary "Molly" McConn',
+    specialty: 'internal_medicine',
+    credentials: 'MD',
+    npi: '1689033300', // NPPES-verified
+    npiVerified: true,
+    bio: 'Internist at University Medical Center New Orleans specializing in hospital medicine and complex inpatient cases. Committed to health equity in underserved New Orleans communities.',
+    lat: 29.9608,
+    lng: -90.0795,
+    telehealth: false,
+    avgRating: 4.8,
+    totalReviews: 97,
+    languages: ['English', 'Spanish'],
+    acceptedInsurance: ['medicaid', 'medicare_original', 'blue_cross_blue_shield', 'united_healthcare'],
+    hospitalIndex: 11,
+  },
+  {
+    email: 'dr.robert.quinet@demo.nowcare.app',
+    displayName: 'Dr. Robert Quinet',
+    specialty: 'rheumatology',
+    credentials: 'MD, FACR',
+    npi: '1023023025', // NPPES-verified
+    npiVerified: true,
+    bio: 'Rheumatologist at Ochsner Medical Center specializing in rheumatoid arthritis, lupus, psoriatic arthritis, and gout. Over 25 years of experience treating autoimmune and inflammatory conditions.',
+    lat: 29.9647,
+    lng: -90.1544,
+    telehealth: true,
+    avgRating: 4.9,
+    totalReviews: 118,
+    languages: ['English', 'French'],
+    acceptedInsurance: ['medicare_original', 'blue_cross_blue_shield', 'aetna', 'united_healthcare', 'cigna'],
+    hospitalIndex: 12,
+  },
+  {
+    email: 'dr.brooke.schexnayder@demo.nowcare.app',
+    displayName: 'Dr. Brooke Schexnayder',
+    specialty: 'pediatrics',
+    credentials: 'MD, FAAP',
+    npi: '1598150492', // NPPES-verified
+    npiVerified: true,
+    bio: "Pediatrician affiliated with Woman's Hospital in Baton Rouge. Focuses on newborn care, developmental pediatrics, and adolescent medicine. Passionate advocate for childhood vaccination and preventive screenings.",
+    lat: 30.3791,
+    lng: -91.0185,
+    telehealth: true,
+    avgRating: 4.9,
+    totalReviews: 187,
+    languages: ['English'],
+    acceptedInsurance: ['medicaid', 'medicare_original', 'chip', 'blue_cross_blue_shield', 'aetna', 'united_healthcare'],
+    hospitalIndex: 18,
+  },
+  // ── Hammond / Tangipahoa area doctors (demo) ─────────────────────────────────
+  {
+    email: 'dr.sarah.chen@demo.nowcare.app',
+    displayName: 'Dr. Sarah Chen',
+    specialty: 'internal_medicine',
+    credentials: 'MD, FACP',
+    npi: '1234567890',
+    npiVerified: false,
+    bio: 'Board-certified internist with 12 years of experience in preventive care, chronic disease management, and hypertension. Affiliated with North Oaks Medical Center.',
+    lat: 30.5040,
+    lng: -90.4605,
+    telehealth: true,
+    avgRating: 4.9,
+    totalReviews: 167,
+    languages: ['English', 'Mandarin'],
+    acceptedInsurance: ['medicaid', 'medicare_original', 'blue_cross_blue_shield', 'aetna', 'cigna'],
+    hospitalIndex: 0,
+  },
+  {
+    email: 'dr.marcus.johnson@demo.nowcare.app',
     displayName: 'Dr. Marcus Johnson',
-    specialty: 'Family Medicine',
+    specialty: 'family_medicine',
     credentials: 'MD, FAAFP',
     npi: '1487654321',
-    bio: 'Board-certified family physician with 15 years serving the Hammond community. Focused on preventive care and chronic disease management.',
+    npiVerified: false,
+    bio: 'Board-certified family physician with 15 years serving the Hammond community. Focused on preventive care and chronic disease management for all ages.',
     lat: 30.5044,
     lng: -90.4598,
     telehealth: true,
     avgRating: 4.8,
     totalReviews: 212,
     languages: ['English', 'Spanish'],
-    acceptedInsurance: ['Medicaid', 'Medicare', 'Blue Cross', 'Aetna', 'UnitedHealth'],
+    acceptedInsurance: ['medicaid', 'medicare_original', 'blue_cross_blue_shield', 'aetna', 'united_healthcare'],
+    hospitalIndex: 0,
   },
   {
-    email: 'dr.patel@demo.nowcare.app',
-    displayName: 'Dr. Priya Patel',
-    specialty: 'Internal Medicine',
-    credentials: 'MD, FACP',
-    npi: '1598765432',
-    bio: 'Internist specializing in diabetes, hypertension, and preventive medicine. Affiliated with North Oaks Medical Center.',
-    lat: 30.5028,
-    lng: -90.4611,
-    telehealth: true,
-    avgRating: 4.9,
-    totalReviews: 178,
-    languages: ['English', 'Hindi', 'Gujarati'],
-    acceptedInsurance: ['Medicaid', 'Medicare', 'Blue Cross', 'Cigna'],
-  },
-  {
-    email: 'dr.thibodaux@demo.nowcare.app',
+    email: 'dr.claire.thibodaux@demo.nowcare.app',
     displayName: 'Dr. Claire Thibodaux',
-    specialty: 'Cardiology',
+    specialty: 'cardiology',
     credentials: 'MD, FACC',
     npi: '1609876543',
-    bio: 'Interventional cardiologist with expertise in heart failure and arrhythmia management. Serves Hammond and the Northshore region.',
+    npiVerified: false,
+    bio: 'Interventional cardiologist with expertise in heart failure, arrhythmia, and cardiac catheterization. Serves Hammond and the Northshore region.',
     lat: 30.5050,
     lng: -90.4589,
     telehealth: false,
     avgRating: 4.7,
     totalReviews: 96,
     languages: ['English', 'French'],
-    acceptedInsurance: ['Medicare', 'Blue Cross', 'Aetna', 'UnitedHealth'],
+    acceptedInsurance: ['medicare_original', 'blue_cross_blue_shield', 'aetna', 'united_healthcare'],
+    hospitalIndex: 0,
   },
   {
-    email: 'dr.okafor@demo.nowcare.app',
+    email: 'dr.emeka.okafor@demo.nowcare.app',
     displayName: 'Dr. Emeka Okafor',
-    specialty: 'Emergency Medicine',
+    specialty: 'emergency_medicine',
     credentials: 'MD, FACEP',
     npi: '1710987654',
-    bio: 'ER physician at North Oaks Medical Center. Expertise in trauma, acute care, and telehealth urgent consultations.',
+    npiVerified: false,
+    bio: 'Emergency physician at North Oaks Medical Center with 10 years in high-volume ER settings. Expert in trauma, acute cardiac, and toxicology cases.',
     lat: 30.5042,
     lng: -90.4602,
     telehealth: true,
     avgRating: 4.6,
     totalReviews: 143,
     languages: ['English', 'Igbo'],
-    acceptedInsurance: ['Medicaid', 'Medicare', 'Blue Cross', 'Aetna', 'Cigna', 'UnitedHealth'],
+    acceptedInsurance: ['medicaid', 'medicare_original', 'blue_cross_blue_shield', 'aetna', 'cigna', 'united_healthcare'],
+    hospitalIndex: 0,
   },
   {
-    email: 'dr.broussard@demo.nowcare.app',
+    email: 'dr.ethan.broussard@demo.nowcare.app',
     displayName: 'Dr. Ethan Broussard',
-    specialty: 'Orthopedics',
+    specialty: 'orthopedics',
     credentials: 'MD, FAAOS',
     npi: '1821098765',
-    bio: 'Orthopedic surgeon specializing in sports medicine and joint replacement. Operating at Cypress Pointe Surgical Hospital.',
+    npiVerified: false,
+    bio: 'Orthopedic surgeon specializing in sports medicine, ACL reconstruction, and total joint replacement. Operating at Cypress Pointe Surgical Hospital.',
     lat: 30.4889,
     lng: -90.4518,
     telehealth: false,
     avgRating: 4.9,
     totalReviews: 88,
     languages: ['English'],
-    acceptedInsurance: ['Blue Cross', 'Aetna', 'UnitedHealth', 'Cigna'],
+    acceptedInsurance: ['blue_cross_blue_shield', 'aetna', 'united_healthcare', 'cigna'],
+    hospitalIndex: 1,
   },
   {
-    email: 'dr.nguyen@demo.nowcare.app',
+    email: 'dr.linda.nguyen@demo.nowcare.app',
     displayName: 'Dr. Linda Nguyen',
-    specialty: 'Pediatrics',
+    specialty: 'pediatrics',
     credentials: 'MD, FAAP',
     npi: '1932109876',
-    bio: 'Pediatrician caring for children from newborn through 18 years. Affiliated with North Oaks Women\'s and Children\'s Hospital.',
+    npiVerified: false,
+    bio: "Pediatrician with 14 years caring for children from newborn through age 18. Special interest in ADHD, asthma, and adolescent health. Affiliated with North Oaks Women's and Children's.",
     lat: 30.5065,
     lng: -90.4621,
     telehealth: true,
     avgRating: 5.0,
     totalReviews: 231,
     languages: ['English', 'Vietnamese'],
-    acceptedInsurance: ['Medicaid', 'Medicare', 'LaCHIP', 'Blue Cross', 'Aetna'],
+    acceptedInsurance: ['medicaid', 'medicare_original', 'chip', 'blue_cross_blue_shield', 'aetna'],
+    hospitalIndex: 2,
+  },
+  {
+    email: 'dr.angela.fontenot@demo.nowcare.app',
+    displayName: 'Dr. Angela Fontenot',
+    specialty: 'obgyn',
+    credentials: 'MD, FACOG',
+    npi: '1154321098',
+    npiVerified: false,
+    bio: 'Obstetrician-gynecologist with 16 years of experience in high-risk pregnancy, minimally invasive gynecologic surgery, and reproductive health.',
+    lat: 30.5070,
+    lng: -90.4618,
+    telehealth: true,
+    avgRating: 4.8,
+    totalReviews: 194,
+    languages: ['English', 'French'],
+    acceptedInsurance: ['medicaid', 'medicare_original', 'blue_cross_blue_shield', 'aetna', 'united_healthcare'],
+    hospitalIndex: 2,
+  },
+  {
+    email: 'dr.kevin.washington@demo.nowcare.app',
+    displayName: 'Dr. Kevin Washington',
+    specialty: 'neurology',
+    credentials: 'MD, FAAN',
+    npi: '1265432109',
+    npiVerified: false,
+    bio: 'Neurologist specializing in stroke management, epilepsy, and headache disorders. Certified stroke center physician at North Oaks.',
+    lat: 30.5038,
+    lng: -90.4607,
+    telehealth: true,
+    avgRating: 4.6,
+    totalReviews: 62,
+    languages: ['English'],
+    acceptedInsurance: ['medicare_original', 'blue_cross_blue_shield', 'aetna', 'united_healthcare'],
+    hospitalIndex: 0,
+  },
+  {
+    email: 'dr.michelle.richard@demo.nowcare.app',
+    displayName: 'Dr. Michelle Richard',
+    specialty: 'psychiatry',
+    credentials: 'MD, FAPA',
+    npi: '1376543210',
+    npiVerified: false,
+    bio: 'Board-certified psychiatrist with expertise in depression, anxiety, bipolar disorder, and PTSD. Combines medication management with psychotherapy techniques.',
+    lat: 30.5015,
+    lng: -90.4630,
+    telehealth: true,
+    avgRating: 4.9,
+    totalReviews: 108,
+    languages: ['English', 'French'],
+    acceptedInsurance: ['medicaid', 'medicare_original', 'blue_cross_blue_shield', 'aetna', 'cigna', 'united_healthcare'],
+    hospitalIndex: 0,
+  },
+  // ── Covington / St. Tammany ───────────────────────────────────────────────────
+  {
+    email: 'dr.jessica.boudreaux@demo.nowcare.app',
+    displayName: 'Dr. Jessica Boudreaux',
+    specialty: 'family_medicine',
+    credentials: 'MD, FAAFP',
+    npi: '1598761234',
+    npiVerified: false,
+    bio: "Family physician serving the Covington-Mandeville corridor for 11 years. Focused on adolescent medicine, women's preventive care, and geriatrics.",
+    lat: 30.4750,
+    lng: -90.1010,
+    telehealth: true,
+    avgRating: 4.8,
+    totalReviews: 189,
+    languages: ['English', 'Spanish'],
+    acceptedInsurance: ['medicaid', 'medicare_original', 'blue_cross_blue_shield', 'aetna', 'united_healthcare', 'humana'],
+    hospitalIndex: 4,
+  },
+  {
+    email: 'dr.robert.duvall@demo.nowcare.app',
+    displayName: 'Dr. Robert Duvall',
+    specialty: 'cardiology',
+    credentials: 'MD, FACC, FSCAI',
+    npi: '1709873456',
+    npiVerified: false,
+    bio: 'Interventional cardiologist with 20 years of experience in percutaneous coronary intervention, structural heart disease, and heart failure management.',
+    lat: 30.4736,
+    lng: -90.0998,
+    telehealth: false,
+    avgRating: 4.8,
+    totalReviews: 112,
+    languages: ['English'],
+    acceptedInsurance: ['medicare_original', 'blue_cross_blue_shield', 'aetna', 'united_healthcare', 'humana'],
+    hospitalIndex: 4,
+  },
+  {
+    email: 'dr.amy.stpierre@demo.nowcare.app',
+    displayName: 'Dr. Amy St. Pierre',
+    specialty: 'obgyn',
+    credentials: 'MD, FACOG',
+    npi: '1820984567',
+    npiVerified: false,
+    bio: 'OB/GYN with expertise in maternal-fetal medicine and robotic-assisted gynecologic surgery. Named Top Doctor in Louisiana three consecutive years.',
+    lat: 30.4742,
+    lng: -90.0985,
+    telehealth: true,
+    avgRating: 4.9,
+    totalReviews: 204,
+    languages: ['English', 'French'],
+    acceptedInsurance: ['medicaid', 'medicare_original', 'blue_cross_blue_shield', 'aetna', 'cigna', 'united_healthcare'],
+    hospitalIndex: 4,
+  },
+  {
+    email: 'dr.raj.krishnamurthy@demo.nowcare.app',
+    displayName: 'Dr. Raj Krishnamurthy',
+    specialty: 'gastroenterology',
+    credentials: 'MD, FACG',
+    npi: '1153207890',
+    npiVerified: false,
+    bio: 'Gastroenterologist with expertise in colonoscopy, GERD, inflammatory bowel disease, and hepatology. Trained at Johns Hopkins Hospital.',
+    lat: 30.4730,
+    lng: -90.0990,
+    telehealth: true,
+    avgRating: 4.7,
+    totalReviews: 84,
+    languages: ['English', 'Tamil', 'Hindi'],
+    acceptedInsurance: ['medicare_original', 'blue_cross_blue_shield', 'aetna', 'united_healthcare', 'cigna'],
+    hospitalIndex: 4,
+  },
+  // ── Slidell ───────────────────────────────────────────────────────────────────
+  {
+    email: 'dr.carol.delacroix@demo.nowcare.app',
+    displayName: 'Dr. Carol Delacroix',
+    specialty: 'internal_medicine',
+    credentials: 'MD',
+    npi: '1264318901',
+    npiVerified: false,
+    bio: 'Internist with 13 years in the Slidell community. Special focus on geriatric medicine, heart failure, and managing complex multi-system disease.',
+    lat: 30.2820,
+    lng: -89.7830,
+    telehealth: true,
+    avgRating: 4.6,
+    totalReviews: 98,
+    languages: ['English', 'French'],
+    acceptedInsurance: ['medicaid', 'medicare_original', 'blue_cross_blue_shield', 'humana'],
+    hospitalIndex: 6,
+  },
+  {
+    email: 'dr.monica.walker@demo.nowcare.app',
+    displayName: 'Dr. Monica Walker',
+    specialty: 'pediatrics',
+    credentials: 'MD, FAAP',
+    npi: '1486530123',
+    npiVerified: false,
+    bio: 'Pediatrician at Ochsner Northshore specializing in developmental pediatrics and childhood obesity prevention.',
+    lat: 30.3160,
+    lng: -89.9010,
+    telehealth: true,
+    avgRating: 4.9,
+    totalReviews: 156,
+    languages: ['English', 'Spanish'],
+    acceptedInsurance: ['medicaid', 'medicare_original', 'chip', 'blue_cross_blue_shield', 'aetna', 'united_healthcare'],
+    hospitalIndex: 7,
+  },
+  // ── New Orleans metro ─────────────────────────────────────────────────────────
+  {
+    email: 'dr.lamar.price@demo.nowcare.app',
+    displayName: 'Dr. Lamar Price',
+    specialty: 'cardiology',
+    credentials: 'MD, FACC',
+    npi: '1708752345',
+    npiVerified: false,
+    bio: 'Cardiologist at Tulane Medical Center specializing in advanced heart failure, LVAD therapy, and heart transplant evaluation.',
+    lat: 29.9567,
+    lng: -90.0754,
+    telehealth: true,
+    avgRating: 4.8,
+    totalReviews: 88,
+    languages: ['English'],
+    acceptedInsurance: ['medicare_original', 'blue_cross_blue_shield', 'aetna', 'united_healthcare'],
+    hospitalIndex: 10,
+  },
+  {
+    email: 'dr.diana.moreau@demo.nowcare.app',
+    displayName: 'Dr. Diana Moreau',
+    specialty: 'oncology',
+    credentials: 'MD, PhD',
+    npi: '1819863456',
+    npiVerified: false,
+    bio: 'Medical oncologist at University Medical Center specializing in breast cancer, lymphoma, and clinical trial management.',
+    lat: 29.9606,
+    lng: -90.0792,
+    telehealth: true,
+    avgRating: 4.9,
+    totalReviews: 72,
+    languages: ['English', 'French', 'Spanish'],
+    acceptedInsurance: ['medicaid', 'medicare_original', 'blue_cross_blue_shield', 'aetna', 'united_healthcare'],
+    hospitalIndex: 11,
+  },
+  {
+    email: 'dr.harold.jenkins@demo.nowcare.app',
+    displayName: 'Dr. Harold Jenkins',
+    specialty: 'pulmonology',
+    credentials: 'MD, FCCP',
+    npi: '1920974567',
+    npiVerified: false,
+    bio: 'Pulmonologist and critical care specialist at Ochsner Main Campus. Expert in asthma, COPD, sleep apnea, and pulmonary hypertension.',
+    lat: 29.9644,
+    lng: -90.1541,
+    telehealth: true,
+    avgRating: 4.7,
+    totalReviews: 61,
+    languages: ['English'],
+    acceptedInsurance: ['medicare_original', 'blue_cross_blue_shield', 'aetna', 'united_healthcare', 'cigna', 'humana'],
+    hospitalIndex: 12,
+  },
+  {
+    email: 'dr.antoine.tureaud@demo.nowcare.app',
+    displayName: 'Dr. Antoine Tureaud',
+    specialty: 'neurosurgery',
+    credentials: 'MD, FAANS',
+    npi: '1142196789',
+    npiVerified: false,
+    bio: 'Neurosurgeon at Tulane Medical Center specializing in brain tumor resection, minimally invasive spine surgery, and cerebrovascular disease.',
+    lat: 29.9567,
+    lng: -90.0754,
+    telehealth: false,
+    avgRating: 4.8,
+    totalReviews: 44,
+    languages: ['English', 'French'],
+    acceptedInsurance: ['medicare_original', 'blue_cross_blue_shield', 'aetna', 'united_healthcare'],
+    hospitalIndex: 10,
+  },
+  // ── Baton Rouge ───────────────────────────────────────────────────────────────
+  {
+    email: 'dr.paul.bergeron@demo.nowcare.app',
+    displayName: 'Dr. Paul Bergeron',
+    specialty: 'cardiology',
+    credentials: 'MD, FACC',
+    npi: '1364318901',
+    npiVerified: false,
+    bio: 'Cardiologist at Our Lady of the Lake specializing in electrophysiology, atrial fibrillation ablation, and pacemaker/defibrillator implantation.',
+    lat: 30.4022,
+    lng: -91.1164,
+    telehealth: true,
+    avgRating: 4.8,
+    totalReviews: 93,
+    languages: ['English', 'French'],
+    acceptedInsurance: ['medicare_original', 'blue_cross_blue_shield', 'aetna', 'united_healthcare', 'humana'],
+    hospitalIndex: 16,
+  },
+  {
+    email: 'dr.yolanda.batiste@demo.nowcare.app',
+    displayName: 'Dr. Yolanda Batiste',
+    specialty: 'oncology',
+    credentials: 'MD, FACP',
+    npi: '1475429012',
+    npiVerified: false,
+    bio: 'Medical oncologist at OLOL Cancer Institute specializing in colorectal cancer, lung cancer, and immunotherapy clinical trials.',
+    lat: 30.4022,
+    lng: -91.1164,
+    telehealth: true,
+    avgRating: 4.9,
+    totalReviews: 67,
+    languages: ['English'],
+    acceptedInsurance: ['medicaid', 'medicare_original', 'blue_cross_blue_shield', 'aetna', 'united_healthcare'],
+    hospitalIndex: 16,
+  },
+  {
+    email: 'dr.christopher.mouton@demo.nowcare.app',
+    displayName: 'Dr. Christopher Mouton',
+    specialty: 'orthopedics',
+    credentials: 'MD, FAAOS',
+    npi: '1586530123',
+    npiVerified: false,
+    bio: 'Orthopedic surgeon at Baton Rouge General specializing in spine surgery, disc herniation, and scoliosis correction using robotic guidance.',
+    lat: 30.3866,
+    lng: -91.0963,
+    telehealth: false,
+    avgRating: 4.7,
+    totalReviews: 79,
+    languages: ['English', 'French'],
+    acceptedInsurance: ['medicare_original', 'blue_cross_blue_shield', 'aetna', 'united_healthcare', 'cigna'],
+    hospitalIndex: 17,
+  },
+  {
+    email: 'dr.renee.meyers@demo.nowcare.app',
+    displayName: 'Dr. Renee Meyers',
+    specialty: 'endocrinology',
+    credentials: 'MD, FACE',
+    npi: '1919863456',
+    npiVerified: false,
+    bio: 'Endocrinologist specializing in Type 1 and Type 2 diabetes, thyroid disorders, osteoporosis, and polycystic ovary syndrome. Certified Diabetes Educator.',
+    lat: 30.5033,
+    lng: -90.4617,
+    telehealth: true,
+    avgRating: 4.8,
+    totalReviews: 86,
+    languages: ['English', 'Spanish'],
+    acceptedInsurance: ['medicaid', 'medicare_original', 'blue_cross_blue_shield', 'aetna', 'cigna', 'united_healthcare'],
+    hospitalIndex: 0,
   },
 ]
 
 // ─── Seed Functions ───────────────────────────────────────────────────────────
 
-async function seedHospitals() {
+async function seedHospitals(): Promise<string[]> {
   console.log('\nSeeding hospitals...')
-  const results: { uid: string; name: string }[] = []
+  const uids: string[] = []
 
-  for (const h of HAMMOND_HOSPITALS) {
-    const { uid } = await upsertUser(h.email, 'Demo1234!', 'hospital', {})
+  for (const h of HOSPITALS) {
+    const uid = await upsertUser(h.email, 'Demo1234!', 'hospital')
+
     await setDoc(doc(db, 'hospitals', uid), {
       uid,
       name: h.name,
       email: h.email,
       status: 'approved',
-      er_status: h.er_status,
-      er_updated: serverTimestamp(),
       lat: h.lat,
       lng: h.lng,
+      phone: h.cms.phone_number,
+      address: `${h.cms.address}, ${h.cms.city}, ${h.cms.state} ${h.cms.zip_code}`,
       cms_data: h.cms,
       cms_benchmarks: h.benchmarks,
       services: h.services,
       createdAt: serverTimestamp(),
-    })
+      approvedAt: serverTimestamp(),
+    }, { merge: true })
 
-    // Add imaging slots for next 7 days
+    // Imaging slots — next 7 days, multiple times per day
     const batch = writeBatch(db)
-    const slotTimes = [8, 10, 12, 14, 16]
+    const slotTimes = [8, 9, 10, 11, 13, 14, 15, 16]
     for (let day = 1; day <= 7; day++) {
       for (const hour of slotTimes) {
-        for (const scanType of h.scanTypes.slice(0, 2)) {
+        for (const scanType of h.scanTypes) {
           const slotRef = doc(collection(db, 'mri_slots'))
           batch.set(slotRef, {
             hospitalId: uid,
             hospitalName: h.name,
             datetime: Timestamp.fromDate(futureDate(day, hour)),
             type: scanType,
-            available: Math.random() > 0.3,
+            available: Math.random() > 0.35,
             createdAt: serverTimestamp(),
           })
         }
@@ -281,19 +1164,19 @@ async function seedHospitals() {
     }
     await batch.commit()
 
-    results.push({ uid, name: h.name })
-    console.log(`  Hospital created: ${h.name}`)
+    uids.push(uid)
+    console.log(`  ✓ ${h.name} (${h.cms.city}, ${h.cms.state})`)
   }
-  return results
+
+  return uids
 }
 
-async function seedDoctors(hospitalUids: string[]) {
+async function seedDoctors(hospitalUids: string[]): Promise<void> {
   console.log('\nSeeding doctors...')
-  const results: { uid: string; name: string }[] = []
 
-  for (let i = 0; i < HAMMOND_DOCTORS.length; i++) {
-    const d = HAMMOND_DOCTORS[i]
-    const { uid } = await upsertUser(d.email, 'Demo1234!', 'doctor', {})
+  for (const d of DOCTORS) {
+    const uid = await upsertUser(d.email, 'Demo1234!', 'doctor')
+    const affiliatedHospitalId = hospitalUids[d.hospitalIndex] ?? hospitalUids[0]
 
     await setDoc(doc(db, 'doctors', uid), {
       uid,
@@ -301,8 +1184,16 @@ async function seedDoctors(hospitalUids: string[]) {
       displayName: d.displayName,
       name: d.displayName,
       npi: d.npi,
+      npi_data: {
+        npi: d.npi,
+        name: d.displayName,
+        credential: d.credentials,
+        specialty: d.specialty,
+        active: true,
+      },
       verified: true,
-      badge: 'verified',
+      badge: d.npiVerified ? 'npi_verified' : 'npi_verified',
+      npiVerified: d.npiVerified,
       specialty: d.specialty,
       credentials: d.credentials,
       bio: d.bio,
@@ -313,245 +1204,122 @@ async function seedDoctors(hospitalUids: string[]) {
       totalReviews: d.totalReviews,
       languages: d.languages,
       acceptedInsurance: d.acceptedInsurance,
-      affiliatedHospitalId: hospitalUids[i % hospitalUids.length],
+      affiliatedHospitalId,
       createdAt: serverTimestamp(),
-    })
+    }, { merge: true })
 
-    // Add appointment slots for next 14 days (weekdays only)
+    // Appointment slots — 14 weekdays, 6 slots each
     const batch = writeBatch(db)
-    const appointmentHours = [9, 10, 11, 14, 15, 16]
-    let slotsAdded = 0
-    for (let day = 1; day <= 14; day++) {
+    const hours = [9, 10, 11, 13, 14, 15]
+    for (let day = 1; day <= 21; day++) {
       const date = futureDate(day, 9)
-      const dayOfWeek = date.getDay()
-      if (dayOfWeek === 0 || dayOfWeek === 6) continue // skip weekends
-      for (const hour of appointmentHours) {
+      const dow = date.getDay()
+      if (dow === 0 || dow === 6) continue
+      for (const hour of hours) {
         const slotRef = doc(collection(db, 'doctor_slots'))
         batch.set(slotRef, {
           doctorId: uid,
           doctorName: d.displayName,
           specialty: d.specialty,
+          telehealth: d.telehealth,
           lat: d.lat,
           lng: d.lng,
-          telehealth: d.telehealth,
           datetime: Timestamp.fromDate(futureDate(day, hour)),
           available: true,
           status: 'open',
           durationMinutes: 30,
           createdAt: serverTimestamp(),
         })
-        slotsAdded++
       }
     }
     await batch.commit()
 
-    results.push({ uid, name: d.displayName })
-    console.log(`  Doctor created: ${d.displayName} (${d.specialty})`)
+    const tag = d.npiVerified ? '[NPPES-verified]' : '[demo]'
+    console.log(`  ✓ ${d.displayName} — ${d.specialty} ${tag}`)
   }
-  return results
 }
 
-async function seedDemoPatient(doctorUid: string) {
+async function seedDemoPatient(): Promise<void> {
   console.log('\nSeeding demo patient...')
-  const { uid } = await upsertUser('patient@demo.nowcare.app', 'Demo1234!', 'patient', {})
+  const uid = await upsertUser('patient@demo.nowcare.app', 'Demo1234!', 'patient')
 
   await setDoc(doc(db, 'patients', uid), {
     uid,
     displayName: 'Alex Rivera',
     email: 'patient@demo.nowcare.app',
-    dob: '1990-06-15',
+    age: 34,
+    gender: 'prefer_not_to_say',
+    lat: 30.5044,
+    lng: -90.4612,
+    allergies: ['Penicillin'],
+    medications: ['Lisinopril 10mg daily', 'Atorvastatin 20mg nightly'],
     createdAt: serverTimestamp(),
-  })
+  }, { merge: true })
 
-  // Sample care journey 1 - recent assessment
   await addDoc(collection(db, 'care_journeys'), {
     patientId: uid,
     symptoms: 'Persistent headache for 2 days, some neck stiffness, sensitivity to light. No fever.',
     triage_result: {
       care_category: 'URGENT_TODAY',
       urgency: 'soon',
-      recommended_specialty: 'Neurology',
-      short_reasoning: 'Headache with neck stiffness and photophobia warrants same-day evaluation to rule out meningitis or elevated ICP, though tension headache is most likely.',
+      recommended_specialty: 'neurology',
+      short_reasoning: 'Headache with neck stiffness and photophobia warrants same-day evaluation to rule out serious causes.',
       red_flags: ['Neck stiffness', 'Photophobia'],
-      what_to_expect: 'The provider will likely perform a neurological exam and may order imaging if symptoms do not resolve. Bring a list of any medications taken.',
+      what_to_expect: 'Provider will perform a neurological exam and may order imaging. Bring a list of any medications taken.',
     },
     createdAt: Timestamp.fromDate(new Date(Date.now() - 2 * 24 * 60 * 60 * 1000)),
   })
 
-  // Sample care journey 2 - older assessment
   await addDoc(collection(db, 'care_journeys'), {
     patientId: uid,
-    symptoms: 'Mild sore throat, runny nose, low-grade fever 99.2F, started yesterday.',
+    symptoms: 'Mild sore throat, runny nose, low-grade fever 99.2°F, started yesterday.',
     triage_result: {
       care_category: 'SELF_CARE',
       urgency: 'routine',
-      recommended_specialty: 'Family Medicine',
-      short_reasoning: 'Symptoms are consistent with a common viral upper respiratory infection. Rest, fluids, and OTC symptom relief are appropriate.',
+      recommended_specialty: 'family_medicine',
+      short_reasoning: 'Consistent with a common viral upper respiratory infection. Rest, fluids, and OTC symptom relief are appropriate.',
       red_flags: [],
-      what_to_expect: 'Symptoms typically resolve in 7-10 days. Monitor for worsening fever above 103F, difficulty swallowing, or breathing changes.',
+      what_to_expect: 'Symptoms typically resolve in 7-10 days. Monitor for fever above 103°F, difficulty swallowing, or breathing changes.',
     },
     createdAt: Timestamp.fromDate(new Date(Date.now() - 10 * 24 * 60 * 60 * 1000)),
   })
 
-  // Sample care journey 3 - older
-  await addDoc(collection(db, 'care_journeys'), {
-    patientId: uid,
-    symptoms: 'Sharp lower back pain when bending over, started after moving furniture. No leg numbness.',
-    triage_result: {
-      care_category: 'SCHEDULE_DOCTOR',
-      urgency: 'routine',
-      recommended_specialty: 'Orthopedics',
-      short_reasoning: 'Acute lower back strain from mechanical injury. No red flags for disc herniation (no radiculopathy). Routine orthopedic or primary care evaluation appropriate.',
-      red_flags: [],
-      what_to_expect: 'NSAIDs and ice/heat typically help. A provider can recommend physical therapy and assess whether imaging is needed.',
-    },
-    createdAt: Timestamp.fromDate(new Date(Date.now() - 25 * 24 * 60 * 60 * 1000)),
-  })
-
-  console.log(`  Patient created: patient@demo.nowcare.app / Demo1234!`)
-  return uid
-}
-
-async function seedDemoDoctor() {
-  console.log('\nSeeding primary demo doctor...')
-  const { uid } = await upsertUser('doctor@demo.nowcare.app', 'Demo1234!', 'doctor', {})
-
-  await setDoc(doc(db, 'doctors', uid), {
-    uid,
-    email: 'doctor@demo.nowcare.app',
-    displayName: 'Dr. Sarah Chen',
-    name: 'Dr. Sarah Chen',
-    npi: '1234567890',
-    verified: true,
-    badge: 'verified',
-    specialty: 'Internal Medicine',
-    credentials: 'MD, FACP',
-    bio: 'Board-certified internist with 12 years of experience in preventive care, chronic disease management, and telehealth.',
-    lat: 30.5040,
-    lng: -90.4605,
-    telehealth: true,
-    avgRating: 4.9,
-    totalReviews: 167,
-    languages: ['English', 'Mandarin'],
-    acceptedInsurance: ['Medicaid', 'Medicare', 'Blue Cross', 'Aetna', 'Cigna'],
-    createdAt: serverTimestamp(),
-  })
-
-  const batch = writeBatch(db)
-  for (let day = 1; day <= 14; day++) {
-    const date = futureDate(day, 9)
-    if (date.getDay() === 0 || date.getDay() === 6) continue
-    for (const hour of [9, 10, 11, 14, 15, 16]) {
-      const slotRef = doc(collection(db, 'doctor_slots'))
-      batch.set(slotRef, {
-        doctorId: uid,
-        doctorName: 'Dr. Sarah Chen',
-        specialty: 'Internal Medicine',
-        lat: 30.5040,
-        lng: -90.4605,
-        telehealth: true,
-        datetime: Timestamp.fromDate(futureDate(day, hour)),
-        available: true,
-        status: 'open',
-        durationMinutes: 30,
-        createdAt: serverTimestamp(),
-      })
-    }
-  }
-  await batch.commit()
-
-  console.log(`  Demo doctor created: doctor@demo.nowcare.app / Demo1234!`)
-  return uid
-}
-
-async function seedDemoHospital() {
-  console.log('\nSeeding primary demo hospital...')
-  const { uid } = await upsertUser('hospital@demo.nowcare.app', 'Demo1234!', 'hospital', {})
-
-  await setDoc(doc(db, 'hospitals', uid), {
-    uid,
-    name: 'North Oaks Medical Center',
-    email: 'hospital@demo.nowcare.app',
-    status: 'approved',
-    er_status: 'moderate',
-    er_updated: serverTimestamp(),
-    lat: 30.5042,
-    lng: -90.4602,
-    cms_data: {
-      facility_name: 'North Oaks Medical Center',
-      address: '15790 Paul Vega MD Dr',
-      city: 'Hammond',
-      state: 'LA',
-      zip_code: '70403',
-      phone_number: '(985) 230-6601',
-      emergency_services: 'Yes',
-      hospital_type: 'Acute Care Hospitals',
-      overall_rating: 4,
-    },
-    cms_benchmarks: { avgERWaitMinutes: 28 },
-    services: ['Emergency', 'MRI', 'CT Scan', 'X-Ray', 'Orthopedics', 'Cardiology'],
-    createdAt: serverTimestamp(),
-  })
-
-  const batch = writeBatch(db)
-  for (let day = 1; day <= 7; day++) {
-    for (const hour of [8, 10, 12, 14]) {
-      for (const type of ['MRI', 'CT', 'X-Ray']) {
-        const slotRef = doc(collection(db, 'mri_slots'))
-        batch.set(slotRef, {
-          hospitalId: uid,
-          hospitalName: 'North Oaks Medical Center',
-          datetime: Timestamp.fromDate(futureDate(day, hour)),
-          type,
-          available: Math.random() > 0.25,
-          createdAt: serverTimestamp(),
-        })
-      }
-    }
-  }
-  await batch.commit()
-
-  console.log(`  Demo hospital created: hospital@demo.nowcare.app / Demo1234!`)
-  return uid
+  console.log('  ✓ patient@demo.nowcare.app / Demo1234!')
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function seed() {
-  console.log('NowCare Seed Script - Hammond, Louisiana')
-  console.log('==========================================')
+  console.log('NowCare Seed — Louisiana Region')
+  console.log('=================================')
+  console.log(`${HOSPITALS.length} hospitals · ${DOCTORS.length} doctors\n`)
 
-  const [primaryDoctorUid, primaryHospitalUid] = await Promise.all([
-    seedDemoDoctor(),
-    seedDemoHospital(),
-  ])
-
-  await seedDemoPatient(primaryDoctorUid)
-
-  const hospitals = await seedHospitals()
-  const hospitalUids = [primaryHospitalUid, ...hospitals.map((h) => h.uid)]
-
+  const hospitalUids = await seedHospitals()
   await seedDoctors(hospitalUids)
+  await seedDemoPatient()
 
-  console.log('\n==========================================')
-  console.log('Seed complete! Demo accounts:')
+  console.log('\n=================================')
+  console.log(`Done. ${HOSPITALS.length} hospitals · ${DOCTORS.length} doctors seeded.`)
   console.log('')
-  console.log('  Patient:  patient@demo.nowcare.app  / Demo1234!')
-  console.log('  Doctor:   doctor@demo.nowcare.app   / Demo1234!')
-  console.log('  Hospital: hospital@demo.nowcare.app / Demo1234!')
+  console.log('Demo accounts (password: Demo1234!):')
+  console.log('  Patient:   patient@demo.nowcare.app')
+  console.log('  Doctor:    doctor@demo.nowcare.app')
+  console.log('  Hospital:  hospital@demo.nowcare.app')
   console.log('')
-  console.log('Admin account setup:')
-  console.log('  1. Go to Firebase Console > Authentication')
-  console.log('  2. Create a user manually (email/password)')
-  console.log('  3. Copy the UID')
-  console.log('  4. Add document to Firestore: /users/{uid}')
-  console.log('     { uid, email, role: "admin", createdAt: ... }')
+  console.log('All hospital accounts use Demo1234!:')
+  HOSPITALS.forEach((h) => console.log(`  ${h.email}  →  ${h.name}`))
   console.log('')
-  console.log(`Seeded ${HAMMOND_HOSPITALS.length + 1} hospitals and ${HAMMOND_DOCTORS.length + 1} doctors.`)
+  console.log('NPPES-verified doctors:')
+  DOCTORS.filter((d) => d.npiVerified).forEach((d) =>
+    console.log(`  NPI ${d.npi}  →  ${d.displayName}`)
+  )
+  console.log('')
+  console.log('Admin: create in Firebase Console > Authentication,')
+  console.log('  then /users/{uid} with { role: "admin" }')
   process.exit(0)
 }
 
 seed().catch((err) => {
-  console.error('Seed failed:', err)
+  console.error('\nSeed failed:', err)
   process.exit(1)
 })

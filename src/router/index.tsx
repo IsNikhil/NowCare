@@ -31,8 +31,6 @@ import MRISlotManagerPage from '../portals/hospital/MRISlotManager'
 
 import AdminLayout from '../portals/admin/AdminLayout'
 import AdminDashboard from '../portals/admin/AdminDashboard'
-import HospitalQueue from '../portals/admin/HospitalQueue'
-
 
 export const router = createBrowserRouter([
   { path: '/', element: <LandingPage /> },
@@ -60,8 +58,6 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <PatientHome /> },
       { path: 'assess', element: <Assess /> },
-      { path: 'symptoms', element: <Assess /> },
-      { path: 'triage-result', element: <Assess /> },
       { path: 'providers', element: <ProviderResultsPage /> },
       { path: 'summary', element: <PreVisitSummary /> },
       { path: 'history', element: <JourneyHistory /> },
@@ -93,6 +89,8 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <HospitalDashboard /> },
       { path: 'pending', element: <PendingApproval /> },
+      { path: 'scans', element: <MRISlotManagerPage /> },
+      // legacy alias
       { path: 'mri', element: <MRISlotManagerPage /> },
     ],
   },
@@ -105,7 +103,6 @@ export const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: <AdminDashboard /> },
-      { path: 'queue', element: <HospitalQueue /> },
     ],
   },
   { path: '*', element: <NotFoundPage /> },

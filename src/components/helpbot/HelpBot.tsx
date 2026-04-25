@@ -1,17 +1,17 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { HelpCircle, X, Send, Loader2, MessageSquare } from 'lucide-react'
+import { Sparkles, X, Send, Loader2, MessageSquare } from 'lucide-react'
 import { helpBotChat } from '../../services/gemini'
-import { scaleIn } from '../../lib/motion'
 
 type Message = { role: 'user' | 'assistant'; content: string }
 
 const SUGGESTED_PROMPTS = [
-  'How does symptom assessment work?',
+  'How does the symptom assessment work?',
   'How do I upload a lab result?',
-  'What roles are available in NowCare?',
+  'How do I find a doctor in my network?',
   'How do I book an appointment?',
   'Is my data safe?',
+  'How do I reset my password?',
 ]
 
 function TypingIndicator() {
@@ -120,13 +120,13 @@ export default function HelpBot() {
                 <div className="flex items-center gap-2.5">
                   <div
                     className="w-8 h-8 rounded-xl flex items-center justify-center"
-                    style={{ background: 'var(--accent-teal-glow)', color: 'var(--accent-teal)' }}
+                    style={{ background: 'var(--accent-teal-glow)', color: 'var(--accent-teal)', boxShadow: '0 0 10px var(--accent-teal-glow)' }}
                   >
-                    <HelpCircle size={16} strokeWidth={1.75} />
+                    <Sparkles size={16} strokeWidth={1.75} />
                   </div>
                   <div>
-                    <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>NowCare Helper</p>
-                    <p className="text-xs" style={{ color: 'var(--accent-teal)' }}>Product help desk</p>
+                    <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>NowCare Companion</p>
+                    <p className="text-xs" style={{ color: 'var(--accent-teal)' }}>Product help and guidance</p>
                   </div>
                 </div>
                 <button
@@ -150,7 +150,7 @@ export default function HelpBot() {
                       className="px-3 py-2.5 rounded-2xl rounded-tl-sm text-sm leading-relaxed"
                       style={{ background: 'var(--bg-glass)', color: 'var(--text-secondary)', maxWidth: '88%' }}
                     >
-                      Hi! I can help you use NowCare — finding doctors, uploading documents, understanding assessments, and more. What do you need?
+                      Hi, I am NowCare Companion. I can help you navigate the product, explain values from your uploaded documents, and walk you through any feature. What do you need?
                     </div>
 
                     <p className="text-xs font-semibold px-1" style={{ color: 'var(--text-muted)' }}>Quick questions</p>
@@ -239,7 +239,7 @@ export default function HelpBot() {
                   </button>
                 </div>
                 <p className="text-[10px] text-center mt-1.5" style={{ color: 'var(--text-muted)' }}>
-                  Product help only · Not a medical assistant
+                  Product guidance only · Not a medical assistant
                 </p>
               </div>
             </motion.div>
@@ -265,7 +265,7 @@ export default function HelpBot() {
               </motion.div>
             ) : (
               <motion.div key="help" initial={{ rotate: 90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: -90, opacity: 0 }} transition={{ duration: 0.15 }}>
-                <MessageSquare size={20} strokeWidth={1.75} />
+                <Sparkles size={20} strokeWidth={1.75} />
               </motion.div>
             )}
           </AnimatePresence>

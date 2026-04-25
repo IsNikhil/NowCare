@@ -9,7 +9,7 @@ export const images = {
   telehealth: 'https://images.unsplash.com/photo-1588776814546-1ffbb172d985?w=1200&q=80',
   labWork: 'https://images.unsplash.com/photo-1587854692152-cbe660dbde88?w=1200&q=80',
   emergency: 'https://images.unsplash.com/photo-1504439468489-c8920d796a29?w=1200&q=80',
-  northOaks: 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=1200&q=80',
+  hospitalExterior: 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=1200&q=80',
   authBg: 'https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=1600&q=80',
 }
 

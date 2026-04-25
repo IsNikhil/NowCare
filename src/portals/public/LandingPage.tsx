@@ -11,7 +11,6 @@ import {
   Brain,
   HeartPulse,
   FileText,
-  MapPin,
   Shield,
   ArrowRight,
 } from 'lucide-react'
@@ -19,7 +18,6 @@ import { Button } from '../../components/ui/Button'
 import { GlassCard } from '../../components/ui/GlassCard'
 import { ThemeToggle } from '../../components/ui/ThemeToggle'
 import { fadeRise, stagger } from '../../lib/motion'
-import { images } from '../../lib/imageAssets'
 
 export default function LandingPage() {
   return (
@@ -80,23 +78,14 @@ export default function LandingPage() {
           >
             {/* Left content */}
             <div className="flex-1 text-center lg:text-left">
-              <motion.div variants={fadeRise} className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-semibold mb-6"
-                style={{ background: 'var(--surface-tint)', color: 'var(--accent-teal)', border: '1px solid var(--border-subtle)' }}
-              >
-                <span className="w-2 h-2 rounded-full bg-[var(--accent-teal)] animate-pulse" />
-                Built for LionHacks 2026
-              </motion.div>
-
               <motion.h1
                 variants={fadeRise}
                 className="text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.05] mb-6"
                 style={{ color: 'var(--text-primary)' }}
               >
-                Healthcare
+                Care,
                 <br />
-                <span className="gradient-text">navigation,</span>
-                <br />
-                reimagined.
+                <span className="gradient-text">found faster.</span>
               </motion.h1>
 
               <motion.p
@@ -104,7 +93,7 @@ export default function LandingPage() {
                 className="text-lg md:text-xl leading-relaxed mb-8 max-w-lg mx-auto lg:mx-0"
                 style={{ color: 'var(--text-secondary)' }}
               >
-                Describe your symptoms. Get an AI-powered recommendation for the exact right level of care. Find verified providers near you, right now.
+                Describe what you are feeling and get a clear next step — see a doctor today, get a scan, try telehealth, or take care at home.
               </motion.p>
 
               <motion.div variants={fadeRise} className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start">
@@ -121,9 +110,9 @@ export default function LandingPage() {
 
               <motion.div variants={fadeRise} className="flex items-center gap-6 mt-8 justify-center lg:justify-start">
                 {[
-                  { icon: <Shield size={16} strokeWidth={1.75} />, text: 'NPPES verified doctors' },
-                  { icon: <MapPin size={16} strokeWidth={1.75} />, text: 'Providers near you' },
+                  { icon: <Shield size={16} strokeWidth={1.75} />, text: 'NPPES verified providers' },
                   { icon: <Activity size={16} strokeWidth={1.75} />, text: 'Live ER status' },
+                  { icon: <Scan size={16} strokeWidth={1.75} />, text: 'Real-time scan slots' },
                 ].map((item) => (
                   <div key={item.text} className="flex items-center gap-1.5 text-sm" style={{ color: 'var(--text-muted)' }}>
                     <span style={{ color: 'var(--accent-teal)' }}>{item.icon}</span>
@@ -162,7 +151,7 @@ export default function LandingPage() {
                     <span className="text-sm font-bold" style={{ color: 'var(--accent-amber)' }}>See a doctor today</span>
                   </div>
                   <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                    Your symptoms suggest you need same-day evaluation. Three providers are available within 8 miles.
+                    See a doctor with same-day availability or visit your nearest urgent care center.
                   </p>
                 </div>
 
@@ -188,26 +177,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Hospital hero image strip */}
-      <section className="relative h-64 md:h-80 overflow-hidden mx-4 md:mx-12 rounded-3xl mb-24">
-        <img
-          src={images.hospitalHero}
-          alt="North Oaks Medical Center"
-          className="w-full h-full object-cover"
-          loading="lazy"
-        />
-        <div className="absolute inset-0 rounded-3xl" style={{ background: 'linear-gradient(to right, var(--bg-base) 0%, transparent 40%, transparent 60%, var(--bg-base) 100%)' }} />
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="text-center px-4">
-            <p className="text-sm font-semibold mb-2" style={{ color: 'var(--accent-teal)' }}>Real hospitals. Real data.</p>
-            <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight" style={{ color: 'var(--text-primary)' }}>
-              North Oaks Health System
-            </h2>
-            <p style={{ color: 'var(--text-secondary)' }} className="mt-2 text-base">Hammond, Louisiana</p>
-          </div>
-        </div>
-      </section>
-
       {/* How it works */}
       <section className="max-w-4xl mx-auto px-4 py-8 mb-24">
         <motion.div
@@ -229,13 +198,13 @@ export default function LandingPage() {
                 step: '01',
                 icon: <Stethoscope size={28} strokeWidth={1.75} style={{ color: 'var(--accent-teal)' }} />,
                 title: 'AI symptom assessment',
-                body: 'Describe how you feel. NowCare recommends the right level of care in plain language using 6 fixed care categories.',
+                body: 'Describe how you feel. NowCare recommends the right level of care in plain language using 6 fixed care categories — never a guess, never a diagnosis.',
               },
               {
                 step: '02',
                 icon: <Activity size={28} strokeWidth={1.75} style={{ color: 'var(--accent-amber)' }} />,
                 title: 'Live provider availability',
-                body: 'See real ER wait status and imaging slots posted directly by hospitals. No guessing, no calling ahead.',
+                body: 'See real ER wait status and scan slots posted directly by hospitals. No guessing, no calling ahead.',
               },
               {
                 step: '03',
@@ -261,10 +230,10 @@ export default function LandingPage() {
       <section className="max-w-4xl mx-auto px-4 mb-24">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { icon: <Brain size={24} strokeWidth={1.75} style={{ color: 'var(--accent-teal)' }} />, label: 'Gemini AI triage' },
+            { icon: <Brain size={24} strokeWidth={1.75} style={{ color: 'var(--accent-teal)' }} />, label: 'Gemini AI assessment' },
             { icon: <FileText size={24} strokeWidth={1.75} style={{ color: 'var(--accent-violet)' }} />, label: 'Document analysis' },
-            { icon: <MapPin size={24} strokeWidth={1.75} style={{ color: 'var(--accent-amber)' }} />, label: 'Real-time ER status' },
-            { icon: <Shield size={24} strokeWidth={1.75} style={{ color: 'var(--accent-green)' }} />, label: 'NPPES verified docs' },
+            { icon: <Activity size={24} strokeWidth={1.75} style={{ color: 'var(--accent-amber)' }} />, label: 'Real-time ER status' },
+            { icon: <Shield size={24} strokeWidth={1.75} style={{ color: 'var(--accent-green)' }} />, label: 'NPPES verified providers' },
           ].map((f) => (
             <GlassCard key={f.label} className="p-4 flex flex-col items-center gap-2 text-center">
               {f.icon}
@@ -290,19 +259,19 @@ export default function LandingPage() {
               {
                 icon: <User size={28} strokeWidth={1.75} style={{ color: 'var(--accent-teal)' }} />,
                 label: 'I am a patient',
-                description: 'Find the right care based on your symptoms right now.',
+                description: 'Describe your symptoms and get a clear next step in seconds.',
                 to: '/signup/patient',
               },
               {
                 icon: <Stethoscope size={28} strokeWidth={1.75} style={{ color: 'var(--accent-violet)' }} />,
                 label: 'I am a doctor',
-                description: 'Verify your credentials, manage availability, and connect with patients.',
+                description: 'Verify your credentials, set your availability, and connect with patients.',
                 to: '/signup/doctor',
               },
               {
                 icon: <Building2 size={28} strokeWidth={1.75} style={{ color: 'var(--accent-amber)' }} />,
                 label: 'I am a hospital',
-                description: 'Post live ER status, imaging availability, and be found by patients.',
+                description: 'Post live ER status, scan availability, and be found by patients nationwide.',
                 to: '/signup/hospital',
               },
             ].map((r) => (
@@ -342,7 +311,7 @@ export default function LandingPage() {
           </div>
           <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>NowCare</span>
         </div>
-        <p className="text-xs">Built for LionHacks 2026 - GDG on Campus SELU, Healthcare Track</p>
+        <p className="text-xs">AI-powered healthcare navigation for every patient, everywhere.</p>
         <p className="text-xs mt-1">
           NowCare is a navigation tool, not a substitute for professional medical advice.
           In an emergency, call 911.

@@ -10,8 +10,8 @@ export const patientSignupSchema = z.object({
   password: z.string().min(6, 'Password must be at least 6 characters'),
   age: z.coerce.number().int().min(1, 'Age must be at least 1').max(120, 'Age must be under 120'),
   gender: z.enum(['male', 'female', 'nonbinary', 'prefer_not_to_say']),
-  lat: z.coerce.number().min(-90).max(90),
-  lng: z.coerce.number().min(-180).max(180),
+  lat: z.coerce.number().min(-90).max(90).optional(),
+  lng: z.coerce.number().min(-180).max(180).optional(),
 })
 
 export const doctorSignupSchema = z.object({

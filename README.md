@@ -1,35 +1,31 @@
-# NowCare 🏥
+# NowCare
 AI-Powered Healthcare Navigation Platform
-
-Built for LionHacks 2026 (GDG on Campus SELU)
 
 ---
 
-## 🚀 Overview
+## Overview
 
 NowCare is a real-time healthcare navigation platform that helps patients:
 
-- Understand what level of care they need using AI triage (Gemini)
+- Understand what level of care they need using AI symptom assessment (Gemini)
 - Find nearby hospitals and doctors with live availability
-- View ER status, MRI slots, and doctor availability in real time
+- View ER status, scan slots, and doctor availability in real time
 - Generate pre-visit summaries for doctors
-- Track full care journeys
-
-It acts as a "GPS for healthcare".
+- Track full assessment history
 
 ---
 
 ## 🧠 Core Features
 
-### 👤 Patient Portal
+### Patient Portal
 - Symptom input (text / voice)
-- AI triage (ER / urgent / telehealth / wait)
+- AI assessment — six fixed care categories, never a diagnosis
 - Nearby providers on Google Maps
 - Pre-visit medical summary
 
-### 🏥 Hospital Portal
+### Hospital Portal
 - ER status updates (Low / Moderate / High / Closed)
-- MRI slot management
+- Scan slot management (MRI, CT, X-Ray, Ultrasound)
 - CMS-backed hospital verification
 
 ### 👨‍⚕️ Doctor Portal
@@ -48,7 +44,7 @@ It acts as a "GPS for healthcare".
 - React + TypeScript
 - Vite
 - Firebase Auth + Firestore + Hosting
-- Gemini API (AI triage + summaries)
+- Gemini API (AI symptom assessment + document analysis + summaries)
 - Google Maps JavaScript API
 - CMS + NPPES APIs (government healthcare data)
 

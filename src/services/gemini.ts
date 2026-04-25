@@ -15,7 +15,7 @@ const FALLBACK_TRIAGE: TriageResult = {
   what_to_expect: 'A provider will evaluate your symptoms in person and recommend next steps.',
 }
 
-const TRIAGE_SYSTEM = `You are NowCare's symptom assessment engine. You are NOT a doctor. You do NOT diagnose. Your only job is to recommend ONE category of care from this fixed list:
+const ASSESSMENT_SYSTEM = `You are NowCare's symptom assessment engine. You are NOT a doctor. You do NOT diagnose. Your only job is to recommend ONE category of care from this fixed list:
 
 - ER_NOW: chest pain with breath issues, severe bleeding, stroke signs, severe head injury, anaphylaxis, suicidal crisis, severe allergic reaction
 - URGENT_TODAY: high fever with worsening symptoms, moderate injuries, infections needing antibiotics today, dehydration, severe pain that is new
@@ -60,7 +60,7 @@ export async function triage(
       model: 'gemini-2.5-flash',
       contents: userMessage,
       config: {
-        systemInstruction: TRIAGE_SYSTEM,
+        systemInstruction: ASSESSMENT_SYSTEM,
         temperature: 0.2,
       },
     })

@@ -317,14 +317,17 @@ export default function Assess() {
           <GlassCard variant="elevated" className="p-6">
             <div
               className="flex items-center gap-4 p-5 rounded-2xl mb-5 border"
-              style={{ background: cfg.bgClass.replace('bg-', '').replace('/10', ''), borderColor: cfg.borderClass.replace('border-', ''), backgroundColor: `${cfg.color}10`, borderColor: `${cfg.color}30` }}
+              style={{ backgroundColor: `${cfg.color}10`, borderColor: `${cfg.color}30` }}
             >
               <span style={{ color: cfg.color }}>{CARE_ICONS[result.care_category]}</span>
               <div>
                 <h2 className="text-2xl font-extrabold tracking-tight" style={{ color: cfg.color }}>
                   {cfg.headline}
                 </h2>
-                <div className="flex items-center gap-2 mt-1">
+                <p className="text-sm mt-1 leading-snug" style={{ color: 'var(--text-secondary)' }}>
+                  {cfg.subhead}
+                </p>
+                <div className="flex items-center gap-2 mt-2">
                   <Badge
                     variant={result.care_category === 'ER_NOW' ? 'danger' : result.care_category === 'URGENT_TODAY' ? 'warning' : 'teal'}
                   >

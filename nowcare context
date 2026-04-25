@@ -1,0 +1,445 @@
+# NowCare — Claude Context
+
+AI-powered healthcare navigation platform. Patients describe symptoms → Gemini classifies urgency into one of 6 fixed care categories → app routes them to the right provider in real time. Never diagnoses. Never prescribes. Navigation only.
+
+---
+
+## Stack
+
+| Layer | Choice |
+|---|---|
+| Frontend | React 18 + TypeScript + Vite |
+| Styling | Tailwind CSS + CSS custom properties (design tokens) |
+| Animation | Framer Motion (`fadeRise`, `stagger` variants in `src/lib/motion.ts`) |
+| Routing | React Router v6 — nested routes, no hash routing |
+| Backend | Firebase Auth + Firestore + Storage (no separate server) |
+| AI | Google Gemini 2.5 Flash via `@google/genai` — called directly from browser |
+| Maps | Google Maps JavaScript API |
+| Provider data | NPPES NPI Registry (doctors), CMS Hospital General Info (hospitals) — both public, no API key |
+| Toasts | `sonner` |
+| Seed runner | `tsx scripts/seed.ts` via `npm run seed` |
+
+---
+
+## Project Structure
+
+```
+src/
+  portals/
+    public/        LandingPage, LoginPage, SignupPages, UnauthorizedPage, NotFoundPage
+    patient/       PatientHome, Assess, ProviderResults, JourneyHistory, Documents,
+                   DocumentDetail, PreVisitSummary, PatientProfile, PatientLayout
+    doctor/        DoctorDashboard, NPIVerify, AvailabilityManager, DoctorLayout
+    hospital/      HospitalDashboard, MRISlotManager, PendingApproval, HospitalLayout
+    admin/         AdminDashboard, AdminLayout
+  components/
+    auth/          LoginForm, PatientSignupForm, DoctorSignupForm, HospitalSignupForm, SignupRoleChooser
+    layout/        AppShell, Sidebar, Topbar, MobileNav, BackgroundAura
+    providers/     ProviderMap, ERStatusDisplay, VerificationBadge
+    helpbot/       HelpBot.tsx (NowCare Companion — Sparkles icon, bottom-right)
+    ui/            Button, Badge, GlassCard, Input, Select, Textarea, Modal, BottomSheet,
+                   Skeleton, LoadingSpinner, ThemeToggle, Tabs, StatusPill, EmptyState, Toast
+  services/
+    firebase.ts    Firebase app init + exports (auth, db, storage)
+    gemini.ts      All Gemini AI functions
+    nppes.ts       verifyNPI() — hits npiregistry.cms.hhs.gov
+    cms.ts         fetchHospitalData() + fetchBenchmarks() — hits data.cms.gov
+    maps.ts        Google Maps helpers
+    storage.ts     Firebase Storage upload helpers
+  context/
+    AuthContext.tsx   useAuthContext(), AuthProvider
+    ThemeContext.tsx  useTheme(), ThemeProvider
+    ToastContext.tsx
+  hooks/
+    useAuth.ts                   Wraps useAuthContext
+    useFirestoreCollection.ts    onSnapshot real-time collection listener → { data, loading, error }
+    useFirestoreDoc.ts           onSnapshot real-time doc listener → { data, loading, error }
+    useGeoQuery.ts               Geo-filtered query (requires lat/lng — returns [] when null)
+  lib/
+    careCategories.ts   6 CareCategory types + CARE_CATEGORY_CONFIG (single source of truth)
+    specialties.ts      SPECIALTIES[] with snake_case IDs + getSpecialtyLabel()
+    insuranceCarriers.ts INSURANCE_CARRIERS[] with IDs + aliases
+    productKnowledge.ts PRODUCT_KNOWLEDGE object — injected into HelpBot system prompt at runtime
+    imageAssets.ts      Unsplash URL map (images, doctorAvatars)
+    motion.ts           Framer Motion variants
+    format.ts           formatDate(), formatTime()
+    haversine.ts        Distance calculation
+    validation.ts       Form validators
+    constants.ts        App-wide constants
+  router/
+    index.tsx           createBrowserRouter — all routes
+    ProtectedRoute.tsx  Role guard + hospital pending redirect
+    RoleRedirect.tsx    /app → role home
+  types/
+    index.ts            All TypeScript types
+scripts/
+  seed.ts               Full seed: 20 hospitals + 35 doctors + demo patient
+firestore.rules         Firestore security rules
+```
+
+---
+
+## Routing
+
+```
+/                         LandingPage (public)
+/login                    LoginPage
+/signup                   SignupRoleChooser
+/signup/patient           PatientSignupPage
+/signup/doctor            DoctorSignupPage
+/signup/hospital          HospitalSignupPage
+/unauthorized             UnauthorizedPage
+/app                      RoleRedirect → role home
+/patient                  PatientHome          (role: patient)
+/patient/assess           Assess
+/patient/providers        ProviderResults
+/patient/summary          PreVisitSummary
+/patient/history          JourneyHistory
+/patient/documents        Documents
+/patient/documents/:docId DocumentDetail
+/patient/profile          PatientProfile
+/doctor                   DoctorDashboard      (role: doctor)
+/doctor/verify            NPIVerify
+/doctor/availability      AvailabilityManager
+/hospital                 HospitalDashboard    (role: hospital)
+/hospital/pending         PendingApproval
+/hospital/scans           MRISlotManager
+/hospital/mri             MRISlotManager (legacy alias)
+/admin                    AdminDashboard       (role: admin)
+```
+
+**ProtectedRoute logic:**
+1. Loading → `<PageLoader />`
+2. Not signed in → `/login`
+3. Wrong role → `/unauthorized`
+4. Hospital + `status: 'pending'` + not already on `/hospital/pending` → `/hospital/pending`
+
+---
+
+## Auth Flow
+
+`AuthProvider` (`src/context/AuthContext.tsx`) wraps the whole app via `onAuthStateChanged`:
+1. Reads `/users/{uid}` → gets `role`
+2. If role is `hospital`, reads `/hospitals/{uid}` → gets `status`
+3. Exposes `{ user, profile, role, hospitalStatus, loading, logout }`
+
+`useAuth()` is the public hook (wraps `useAuthContext`).
+
+**Admin accounts cannot be created through the app.** Must be done manually:
+1. Firebase Console → Authentication → Create user
+2. Firestore → `/users/{uid}` → `{ uid, email, role: "admin", createdAt }`
+
+---
+
+## Firestore Collections
+
+### `/users/{uid}`
+```ts
+{ uid: string, email: string, role: 'patient'|'doctor'|'hospital'|'admin', createdAt: Timestamp }
+```
+
+### `/patients/{uid}`
+```ts
+{ uid, displayName?, age, gender, lat?, lng?, allergies?, medications?, emergencyContact? }
+```
+`lat/lng` set by browser Geolocation API from ProviderResults page — saved with `setDoc(..., { merge: true })`.
+
+### `/hospitals/{uid}`
+```ts
+{
+  uid, name, email, status: 'pending'|'approved'|'denied',
+  lat, lng, phone, address,
+  er_status?: 'low'|'moderate'|'high'|'closed',  // set manually by hospital staff
+  er_updated?: Timestamp,
+  cms_data: { facility_id, facility_name, address, city, state, zip_code,
+              phone_number, hospital_type, hospital_ownership, emergency_services, overall_rating },
+  cms_benchmarks: { avgERWaitMinutes: number|null, imagingEfficiencyScore: number|null },
+  services: string[],
+  createdAt, approvedAt?
+}
+```
+
+### `/doctors/{uid}`
+```ts
+{
+  uid, email, displayName, name, npi,
+  npi_data: { npi, name, credential, specialty, active },
+  verified: boolean,
+  badge: 'npi_verified'|'hospital_verified',
+  specialty: string,         // snake_case ID from SPECIALTIES (e.g. 'internal_medicine')
+  credentials, bio, languages?,
+  acceptedInsurance?: string[],  // IDs from INSURANCE_CARRIERS (e.g. 'united_healthcare')
+  lat?, lng?, telehealth?,
+  avgRating?, totalReviews?,
+  affiliatedHospitalId?,
+  createdAt
+}
+```
+
+### `/mri_slots/{slotId}`
+```ts
+{ hospitalId, hospitalName, datetime: Timestamp, type: 'MRI'|'CT'|'X-Ray'|'Ultrasound', available: boolean }
+```
+
+### `/doctor_slots/{slotId}`
+```ts
+{ doctorId, doctorName, specialty, telehealth, lat, lng, datetime: Timestamp,
+  available: boolean, status: 'open'|'reserved'|'blocked', durationMinutes: number }
+```
+Booking: sets `available → false`, `status → 'reserved'`, adds `patientId` and `bookedAt`.
+
+### `/care_journeys/{journeyId}`
+```ts
+{
+  patientId, symptoms,
+  triage_result: { care_category, urgency, recommended_specialty?, scan_type?, short_reasoning, red_flags[], what_to_expect },
+  provider_type?, selected_provider_id?, appointment_datetime?,
+  pre_visit_summary?,
+  createdAt
+}
+```
+
+### `/patient_documents/{docId}`
+```ts
+{
+  patientId, filename, storagePath, contentType, fileSize, uploadedAt,
+  category: 'lab_result'|'prescription'|'scan_report'|'discharge_summary'|'other',
+  analysisStatus: 'pending'|'complete'|'failed',
+  analysis?: DocumentAnalysis  // full Gemini output
+}
+```
+
+### `/bookings/{bookingId}`, `/admin_audit_log/{logId}`, `/notifications/{notificationId}`
+See `src/types/index.ts` for full shapes.
+
+---
+
+## Firestore Security Rules — Key Points
+
+- **hospitals + doctors**: any signed-in user can read. Only owner or admin can write.
+- **patients**: only owner or admin can read/write.
+- **care_journeys + patient_documents**: only owner patient or admin.
+- **doctor_slots booking**: any signed-in user can flip `available → false / status → reserved` on a slot that is still available. That is the only cross-user write allowed.
+- **`isAdmin()`**: reads `/users/{uid}.role` inline — one extra Firestore read per admin-gated rule evaluation.
+- **notifications**: admin writes only, owner reads only.
+
+---
+
+## The 6 Care Categories
+
+Defined in `src/lib/careCategories.ts`. Used by Gemini system prompt AND the result card UI.
+
+| ID | Headline | Urgency | Provider type |
+|---|---|---|---|
+| `ER_NOW` | Go to the ER now | immediate | hospital |
+| `URGENT_TODAY` | See a doctor today | soon | doctor |
+| `SCAN_NEEDED` | Get a scan | soon | hospital |
+| `TELEHEALTH` | Try telehealth | routine | doctor |
+| `SCHEDULE_DOCTOR` | Schedule with a doctor | routine | doctor |
+| `SELF_CARE` | Take care at home | routine | doctor |
+
+---
+
+## Gemini AI Functions (`src/services/gemini.ts`)
+
+All use `gemini-2.5-flash`, `temperature: 0.2–0.4`. All called from the browser. API key: `VITE_GEMINI_API_KEY`.
+
+| Function | Purpose | Called from |
+|---|---|---|
+| `triage(symptoms, patientContext?)` | Symptom → CareCategory JSON | Assess page |
+| `analyzeDocument(file)` | Medical doc → structured analysis JSON | Documents page |
+| `askAboutDocument(q, analysis, history)` | Q&A on an analyzed document | DocumentDetail |
+| `generatePreVisitSummary(symptoms, triage, patient)` | Pre-visit summary for doctor | PreVisitSummary |
+| `helpBotChat(message, history)` | Product help chat | HelpBot/Companion |
+| `generateDoctorInsights(name, specialty, reasons)` | Practice insights for doctor | DoctorDashboard |
+| `summary()` | Legacy alias for generatePreVisitSummary | — |
+
+**Safety rules baked into every system prompt:**
+- `triage()`: output MUST be one of 6 fixed categories. If not, `FALLBACK_TRIAGE` is returned (`URGENT_TODAY` + safe messaging).
+- `analyzeDocument()`: never diagnoses, never changes meds, always includes disclaimer.
+- `helpBotChat()`: if user asks anything clinical, returns fixed redirect text. Never guesses.
+
+---
+
+## External APIs
+
+**NPPES NPI Registry** — `https://npiregistry.cms.hhs.gov/api/?number={npi}&version=2.1`
+- Public, no API key
+- Used at doctor signup to verify NPI is active (`basic.status === 'A'`)
+- Returns name, credential, specialty, city/state
+- Stored in `/doctors/{uid}.npi_data`
+
+**CMS Hospital General Info** — `https://data.cms.gov/provider-data/api/1/datastore/query/xubh-q36u/0`
+- Public, no API key, POST with JSON body
+- Used at hospital admin approval to pull CMS facility data
+- Second endpoint `yv7e-xc69` for benchmarks (ER wait time `ED_1b`/`OP_18b`, imaging efficiency `OP_8`/`OP_10`)
+
+**Google Maps JavaScript API** — key in `VITE_GOOGLE_MAPS_API_KEY`
+- Renders `ProviderMap` with hospital + doctor pins
+- Centers on `patient.lat/lng` when set
+
+---
+
+## Specialty IDs — IMPORTANT
+
+**Always use snake_case IDs in Firestore**, not display names. The `SPECIALTIES` array in `src/lib/specialties.ts` is the canonical list.
+
+```
+internal_medicine, family_medicine, pediatrics, cardiology, neurology, neurosurgery,
+orthopedics, dermatology, dentistry, oral_surgery, obgyn, psychiatry, psychology,
+ophthalmology, ent, urology, gastroenterology, endocrinology, oncology, pulmonology,
+nephrology, rheumatology, emergency_medicine, radiology, anesthesiology, physical_therapy
+```
+
+`getSpecialtyLabel(id)` converts ID → display name. If the ID is not in the list it returns the raw string as a fallback.
+
+ProviderResults has a `toSpecialtyId()` normalizer that converts display names → IDs to handle legacy Firestore data.
+
+---
+
+## Insurance Carrier IDs — IMPORTANT
+
+Always use the IDs from `src/lib/insuranceCarriers.ts`. Key ones that have been wrongly seeded in the past:
+
+| Wrong | Correct |
+|---|---|
+| `united_health` | `united_healthcare` |
+| `medicare` | `medicare_original` |
+| `la_chip` | `chip` |
+
+Full list: `blue_cross_blue_shield`, `united_healthcare`, `aetna`, `cigna`, `humana`, `kaiser_permanente`, `anthem`, `molina`, `centene`, `wellcare`, `oscar`, `medicare_original`, `medicare_advantage`, `medicaid`, `tricare`, `va_health`, `chip`, `marketplace_aca`, `self_pay`, `other`
+
+ProviderResults has a `toInsuranceId()` normalizer with an aliases map for backward compat.
+
+---
+
+## Real-Time Data
+
+`useFirestoreCollection` and `useFirestoreDoc` both use `onSnapshot()` — real-time listeners, not one-shot reads. Changes in Firestore propagate to all connected clients immediately without page refresh. This is intentional — ER status updates, new slots, admin approvals all need to be live.
+
+---
+
+## ProviderResults — Key Logic
+
+- Loads **ALL** approved hospitals + **ALL** doctors with `onSnapshot`. No geo-gating.
+- Hospitals grouped by `cms_data.hospital_type` (section dividers with count badges).
+- Doctors grouped by specialty when no filter active; flat list when specialty filter is set.
+- Specialty header labels in doctor groups are clickable — clicking applies that specialty as a filter.
+- Insurance filter: dropdown, applies `toInsuranceId()` normalization before comparing.
+- Specialty filter: applies `toSpecialtyId()` normalization before comparing.
+- "Use my location" button: `navigator.geolocation.getCurrentPosition()` → saves to `/patients/{uid}` with `merge: true` → updates `mapCenter` state → re-centers map. No navigation.
+- ER status on hospital cards is whatever the hospital last set via their dashboard. Not pre-seeded.
+
+---
+
+## HelpBot / NowCare Companion
+
+- File: `src/components/helpbot/HelpBot.tsx`
+- Icon: `Sparkles` (lucide-react), bottom-right, every screen
+- Header: "NowCare Companion", subtitle: "Product help and guidance"
+- Reads `PRODUCT_KNOWLEDGE` from `src/lib/productKnowledge.ts` at runtime on every message
+- Keeps last 10 messages of history for context
+- NEVER answers clinical questions — redirects to Assessment tool
+- **Update `productKnowledge.ts` whenever a feature changes** — the bot reads it live
+
+---
+
+## Admin Dashboard
+
+- File: `src/portals/admin/AdminDashboard.tsx`
+- 4 tabs: Overview, Hospitals, Doctors, Patients
+- Tab state: `useState<Tab>('overview')` — client-side, no anchor links, no scroll-jump
+- `AnimatePresence mode="wait"` for cross-fade transitions between panels
+- Patients are readable because Firestore rules include `isAdmin()` on the patients collection
+
+---
+
+## Hospital Portal — ER Status
+
+ER status is **never pre-seeded**. Hospitals log in and set it manually from their dashboard via `ERStatusToggle`. It writes to `/hospitals/{uid}.er_status` and `.er_updated`. Options: `low | moderate | high | closed`. Patients see this on hospital cards in real time via `onSnapshot`.
+
+---
+
+## Seed Script
+
+`npm run seed` → `tsx scripts/seed.ts`
+
+- Uses Firebase **client** SDK (not Admin SDK)
+- `upsertUser()`: tries `createUserWithEmailAndPassword`, falls back to `signInWithEmailAndPassword` if email already exists
+- All accounts: password `Demo1234!`
+- Demo patient: `patient@demo.nowcare.app`
+- Demo doctor: `doctor@demo.nowcare.app`
+- All hospital emails are printed to console after seed completes
+- Seeds 20 hospitals with CMS-verified GPS + 7 days of imaging slots
+- Seeds 35 doctors with 14 days of appointment slots (6 slots/weekday)
+- 8 doctors have real NPPES-verified NPI numbers (noted in the script)
+- ER status NOT seeded — hospitals set it live
+
+---
+
+## Design System
+
+All colors/spacing via CSS custom properties on `:root` and `[data-theme="dark"]`.
+
+Key tokens:
+```css
+--text-primary, --text-secondary, --text-muted
+--bg-glass, --bg-elevated, --surface-tint
+--accent-teal, --accent-teal-glow
+--accent-violet, --accent-amber
+--border-subtle, --shadow-card
+```
+
+**`GlassCard`** — main container. `variant="default"|"elevated"|"interactive"`
+**`Button`** — `size="sm"|"md"|"lg"`, `variant="primary"|"secondary"|"ghost"|"danger"`, `as="a"` for links
+**`Badge`** — `variant="teal"|"violet"|"success"|"warning"|"danger"|"slate"`, `dot` prop
+**`BottomSheet`** — slide-up drawer used for booking flow
+**`SkeletonList`** — loading placeholder
+
+Dark/light mode persists to `localStorage` via `ThemeContext`. `ThemeToggle` component lives in the topbar.
+
+---
+
+## Conventions
+
+- **Firestore writes**: always use `setDoc(..., { merge: true })` for updates to avoid overwriting fields you didn't touch.
+- **No geo-gating on provider results**: removed. All providers always shown. `useGeoQuery` is still in the codebase but not used in ProviderResults.
+- **"Assessment" not "triage"**: all UI strings say "assessment". The internal type is still `TriageResult` for backward compat but the constant was renamed `ASSESSMENT_SYSTEM`.
+- **No LionHacks/GDG/North Oaks branding**: removed from LandingPage, README, productKnowledge.
+- **Specialty IDs in Firestore**: snake_case. Display names only in UI via `getSpecialtyLabel()`.
+- **Insurance IDs in Firestore**: match `INSURANCE_CARRIERS[].id` exactly.
+- **Admin-only screens**: implement inline in `AdminDashboard.tsx` as panel components, not separate routes.
+- **No anchor-link tab navigation**: all tab switching is `useState`, never `#hash` links (causes scroll-jump).
+- **Real-time everywhere**: prefer `onSnapshot` (via `useFirestoreCollection`/`useFirestoreDoc`) over one-shot reads.
+- **Email and phone on every provider card**: HospitalCard shows `tel:` and `mailto:` for `cms_data.phone_number` and `email`. DoctorCard shows `mailto:` for `email`.
+- **avgRating / totalReviews on doctors**: fabricated demo data. Not from any real source. NPPES and CMS do not publish patient ratings.
+
+---
+
+## Environment Variables
+
+```
+VITE_FIREBASE_API_KEY
+VITE_FIREBASE_AUTH_DOMAIN
+VITE_FIREBASE_PROJECT_ID
+VITE_FIREBASE_STORAGE_BUCKET
+VITE_FIREBASE_MESSAGING_SENDER_ID
+VITE_FIREBASE_APP_ID
+VITE_GEMINI_API_KEY
+VITE_GOOGLE_MAPS_API_KEY
+```
+
+Copy `.env.example` → `.env` to get started.
+
+---
+
+## Commands
+
+```bash
+npm run dev          # Vite dev server
+npm run build        # tsc -b && vite build
+npm run preview      # Preview production build
+npm run seed         # Seed Firebase with demo data
+npm run seed:hospitals  # Seed hospitals only (legacy script)
+npx tsc --noEmit     # Type check without building
+```

@@ -8,8 +8,6 @@ import {
   HardDrive,
   CheckSquare,
   FileText,
-  Users,
-  Settings,
   Activity,
   UserCircle,
 } from 'lucide-react'
@@ -39,12 +37,11 @@ const doctorNav: NavItem[] = [
 
 const hospitalNav: NavItem[] = [
   { to: '/hospital', label: 'Dashboard', icon: <LayoutDashboard size={20} strokeWidth={1.75} />, exact: true },
-  { to: '/hospital/mri', label: 'Scan Slots', icon: <HardDrive size={20} strokeWidth={1.75} /> },
+  { to: '/hospital/scans', label: 'Scan Slots', icon: <HardDrive size={20} strokeWidth={1.75} /> },
 ]
 
 const adminNav: NavItem[] = [
   { to: '/admin', label: 'Dashboard', icon: <LayoutDashboard size={20} strokeWidth={1.75} />, exact: true },
-  { to: '/admin/queue', label: 'Hospital Queue', icon: <CheckSquare size={20} strokeWidth={1.75} /> },
 ]
 
 const navByRole: Record<string, NavItem[]> = {

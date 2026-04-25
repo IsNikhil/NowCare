@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { createUserWithEmailAndPassword, deleteUser } from 'firebase/auth'
-import { doc, setDoc, serverTimestamp, GeoPoint } from 'firebase/firestore'
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { useNavigate } from 'react-router-dom'
 import { auth, db } from '../../services/firebase'
 import { patientSignupSchema, type PatientSignupFormData } from '../../lib/validation'
@@ -68,14 +68,12 @@ export default function PatientSignupForm() {
         createdAt: serverTimestamp(),
       })
 
-      await setDoc(doc(db, 'patients', uid), {
-        uid,
-        age: data.age,
-        gender: data.gender,
-        location: new GeoPoint(data.lat, data.lng),
-        lat: data.lat,
-        lng: data.lng,
-      })
+      const patientDoc: Record<string, unknown> = { uid, age: data.age, gender: data.gender }
+      if (data.lat != null && data.lng != null) {
+        patientDoc.lat = data.lat
+        patientDoc.lng = data.lng
+      }
+      await setDoc(doc(db, 'patients', uid), patientDoc)
 
       navigate('/patient')
     } catch (err) {
@@ -155,7 +153,7 @@ export default function PatientSignupForm() {
         {locationError && (
           <p className="text-xs text-rose-500 mt-2">{locationError}</p>
         )}
-        <p className="text-xs text-slate-400 mt-2">Used to find providers near you. Not shared publicly.</p>
+        <p className="text-xs text-slate-400 mt-2">Optional — used to find providers near you. You can set it later from the providers page.</p>
       </div>
 
       <Button type="submit" loading={isSubmitting} fullWidth className="!rounded-lg mt-2">
