@@ -478,11 +478,11 @@ export default function JourneyHistory() {
   ]
 
   return (
-    <motion.div variants={stagger} initial="initial" animate="animate" className="mx-auto max-w-7xl space-y-6">
+    <motion.div variants={stagger} initial="initial" animate="animate" className="mx-auto max-w-7xl space-y-6 overflow-hidden">
       <motion.div variants={fadeRise} className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="mb-2 text-xs font-bold uppercase tracking-[0.12em]" style={{ color: 'var(--accent-teal)' }}>Care timeline</p>
-          <h1 className="text-3xl font-extrabold tracking-tight" style={{ color: 'var(--text-primary)' }}>My History</h1>
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight" style={{ color: 'var(--text-primary)' }}>My History</h1>
           <p className="mt-1 text-base" style={{ color: 'var(--text-secondary)' }}>
             Assessments and uploaded reports in one clean timeline.
           </p>
@@ -503,12 +503,12 @@ export default function JourneyHistory() {
       </motion.div>
 
       <motion.div variants={fadeRise}>
-        <div className="flex w-fit gap-1 rounded-xl p-1" style={{ background: 'var(--surface-tint)' }}>
+        <div className="flex w-full gap-1 overflow-x-auto rounded-xl p-1 sm:w-fit" style={{ background: 'var(--surface-tint)' }}>
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-all"
+              className="flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-all"
               style={{
                 background: activeTab === tab.id ? 'var(--bg-elevated)' : 'transparent',
                 color: activeTab === tab.id ? 'var(--text-primary)' : 'var(--text-muted)',
@@ -529,7 +529,7 @@ export default function JourneyHistory() {
           {loading && <SkeletonList count={4} />}
 
           {!loading && filteredItems.length === 0 && (
-            <GlassCard className="p-10 text-center">
+            <GlassCard className="p-6 sm:p-10 text-center">
               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl" style={{ background: 'var(--surface-tint)', color: 'var(--text-muted)' }}>
                 <Activity size={30} strokeWidth={1.5} />
               </div>
@@ -567,7 +567,7 @@ export default function JourneyHistory() {
         </motion.div>
 
         <motion.div variants={fadeRise} className="min-w-0">
-          <div className="sticky top-24">
+          <div className="lg:sticky lg:top-24">
             {selectedItem ? (
               selectedItem.type === 'assessment' ? (
                 <AssessmentDetail journey={selectedItem.data as CareJourney} />

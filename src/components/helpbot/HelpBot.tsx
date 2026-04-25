@@ -210,7 +210,7 @@ export default function HelpBot() {
   return (
     <>
       {/* Floating bubble */}
-      <div className="fixed bottom-20 right-4 md:bottom-6 md:right-6 z-50 flex flex-col items-end gap-3">
+      <div className="fixed bottom-[76px] right-3 left-3 md:left-auto md:bottom-6 md:right-6 z-50 flex flex-col items-end gap-3">
         <AnimatePresence>
           {open && (
             <motion.div
@@ -219,9 +219,9 @@ export default function HelpBot() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 8 }}
               transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-              className="w-[340px] sm:w-[380px] rounded-3xl overflow-hidden flex flex-col"
+              className="w-full sm:w-[380px] rounded-3xl overflow-hidden flex flex-col"
               style={{
-                maxHeight: '520px',
+                maxHeight: 'min(520px, calc(100dvh - 112px))',
                 background: 'var(--bg-elevated)',
                 border: '1px solid var(--border-subtle)',
                 boxShadow: 'var(--shadow-card)',

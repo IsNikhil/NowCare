@@ -95,10 +95,10 @@ export default function PatientHome() {
   }
 
   return (
-    <motion.div variants={stagger} initial="initial" animate="animate" className="max-w-4xl mx-auto space-y-8">
+    <motion.div variants={stagger} initial="initial" animate="animate" className="mx-auto max-w-4xl space-y-6 md:space-y-8">
       {/* Hero greeting */}
       <motion.div variants={fadeRise}>
-        <GlassCard variant="elevated" className="p-6 md:p-8 relative overflow-hidden">
+        <GlassCard variant="elevated" className="p-5 sm:p-6 md:p-8 relative overflow-hidden">
           {/* Decorative conic ring */}
           <div className="absolute -top-12 -right-12 w-48 h-48 rounded-full opacity-10 conic-ring"
             style={{ background: `conic-gradient(var(--accent-teal) 0deg, transparent 120deg, transparent 360deg)` }} />
@@ -107,7 +107,7 @@ export default function PatientHome() {
             <p className="text-sm font-semibold mb-1" style={{ color: 'var(--accent-teal)' }}>
               Good day
             </p>
-            <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight mb-1" style={{ color: 'var(--text-primary)' }}>
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight mb-1" style={{ color: 'var(--text-primary)' }}>
               Hello, {firstName}
             </h1>
             <p className="text-base mb-6" style={{ color: 'var(--text-secondary)' }}>
@@ -162,12 +162,12 @@ export default function PatientHome() {
       {/* Quick action tiles */}
       <motion.div variants={fadeRise}>
         <h2 className="text-sm font-semibold mb-3" style={{ color: 'var(--text-secondary)' }}>Quick actions</h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 min-[420px]:grid-cols-2 md:grid-cols-3 gap-3">
           {QUICK_TILES.map((tile, i) => (
             <motion.div key={tile.title} variants={fadeRise} style={{ transitionDelay: `${i * 40}ms` }}>
               <GlassCard
                 variant="interactive"
-                className="p-4 cursor-pointer"
+                className="p-4 cursor-pointer min-h-[124px]"
                 onClick={() => handleQuickAction(tile.to)}
               >
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3"
@@ -194,7 +194,7 @@ export default function PatientHome() {
             View all
           </button>
         </div>
-        <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+        <div className="grid grid-cols-2 min-[420px]:grid-cols-4 sm:grid-cols-8 gap-2">
           {TOP_SPECIALTIES.map((id) => {
             const spec = SPECIALTIES.find((s) => s.id === id)
             if (!spec) return null
@@ -251,7 +251,7 @@ export default function PatientHome() {
                 return (
                   <div
                     key={item.id}
-                    className="flex items-center gap-3 p-4 cursor-pointer hover:bg-[var(--surface-tint)] transition-colors"
+                    className="flex items-start gap-3 p-4 cursor-pointer hover:bg-[var(--surface-tint)] transition-colors"
                     onClick={() => navigate('/patient/history')}
                   >
                     <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
@@ -268,7 +268,7 @@ export default function PatientHome() {
                         </Badge>
                       )}
                     </div>
-                    <span className="text-xs shrink-0" style={{ color: 'var(--text-muted)' }}>
+                    <span className="hidden min-[420px]:block text-xs shrink-0" style={{ color: 'var(--text-muted)' }}>
                       {j.createdAt && formatDate(j.createdAt)}
                     </span>
                   </div>
@@ -278,7 +278,7 @@ export default function PatientHome() {
                 return (
                   <div
                     key={item.id}
-                    className="flex items-center gap-3 p-4 cursor-pointer hover:bg-[var(--surface-tint)] transition-colors"
+                    className="flex items-start gap-3 p-4 cursor-pointer hover:bg-[var(--surface-tint)] transition-colors"
                     onClick={() => navigate(`/patient/documents/${d.docId}`)}
                   >
                     <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
@@ -291,7 +291,7 @@ export default function PatientHome() {
                         {d.analysisStatus === 'complete' ? 'Analyzed' : d.analysisStatus === 'failed' ? 'Failed' : 'Pending'}
                       </Badge>
                     </div>
-                    <span className="text-xs shrink-0" style={{ color: 'var(--text-muted)' }}>
+                    <span className="hidden min-[420px]:block text-xs shrink-0" style={{ color: 'var(--text-muted)' }}>
                       {d.uploadedAt && formatDate(d.uploadedAt)}
                     </span>
                   </div>

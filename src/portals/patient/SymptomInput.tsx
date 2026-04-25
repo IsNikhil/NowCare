@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Mic, MicOff, Siren, Clock, Video, Leaf, AlertTriangle, ArrowRight } from 'lucide-react'
+import { Mic, MicOff, Siren, Clock, Video, Leaf, AlertTriangle, ArrowRight, Scan, CalendarDays } from 'lucide-react'
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../../services/firebase'
 import { triage } from '../../services/gemini'
@@ -11,7 +11,7 @@ import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
 import { toast } from 'sonner'
-import type { Patient, TriageResult, CareType } from '../../types'
+import type { Patient, TriageResult, CareCategory } from '../../types'
 
 const MAX_CHARS = 1000
 
@@ -41,29 +41,43 @@ type CareConfig = {
   bgClass: string
 }
 
-const careConfig: Record<CareType, CareConfig> = {
-  er: {
+const careConfig: Record<CareCategory, CareConfig> = {
+  ER_NOW: {
     icon: <Siren size={36} strokeWidth={1.75} />,
     headline: 'Go to the ER now',
     colorClass: 'text-rose-500',
     badgeVariant: 'danger',
     bgClass: 'bg-rose-50',
   },
-  urgent: {
+  URGENT_TODAY: {
     icon: <Clock size={36} strokeWidth={1.75} />,
     headline: 'See a doctor today',
     colorClass: 'text-amber-500',
     badgeVariant: 'warning',
     bgClass: 'bg-amber-50',
   },
-  telehealth: {
+  SCAN_NEEDED: {
+    icon: <Scan size={36} strokeWidth={1.75} />,
+    headline: 'Get a scan',
+    colorClass: 'text-violet-500',
+    badgeVariant: 'teal',
+    bgClass: 'bg-violet-50',
+  },
+  TELEHEALTH: {
     icon: <Video size={36} strokeWidth={1.75} />,
     headline: 'Telehealth visit',
     colorClass: 'text-teal-500',
     badgeVariant: 'teal',
     bgClass: 'bg-teal-50',
   },
-  wait: {
+  SCHEDULE_DOCTOR: {
+    icon: <CalendarDays size={36} strokeWidth={1.75} />,
+    headline: 'Schedule with a doctor',
+    colorClass: 'text-teal-500',
+    badgeVariant: 'teal',
+    bgClass: 'bg-teal-50',
+  },
+  SELF_CARE: {
     icon: <Leaf size={36} strokeWidth={1.75} />,
     headline: 'Safe to wait and monitor',
     colorClass: 'text-emerald-500',
@@ -156,13 +170,13 @@ export default function SymptomInput() {
   }
 
   function handleFindCare() {
-    navigate(`/patient/providers?type=${triageResult!.care_type}`, {
+    navigate(`/patient/providers?category=${triageResult!.care_category}&specialty=${triageResult!.recommended_specialty ?? ''}`, {
       state: { journeyId, triageResult },
     })
   }
 
   if (triageResult) {
-    const config = careConfig[triageResult.care_type]
+    const config = careConfig[triageResult.care_category]
     return (
       <div className="max-w-2xl mx-auto">
         <h1 className="text-2xl font-bold text-ink-800 tracking-tight mb-6">What are your symptoms?</h1>
@@ -180,7 +194,7 @@ export default function SymptomInput() {
             </div>
           </div>
 
-          <p className="text-slate-600 leading-relaxed mb-5">{triageResult.reasoning}</p>
+          <p className="text-slate-600 leading-relaxed mb-5">{triageResult.short_reasoning}</p>
 
           {triageResult.red_flags.length > 0 && (
             <div className="glass-1 rounded-2xl p-4 mb-5">

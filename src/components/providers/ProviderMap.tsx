@@ -9,8 +9,11 @@ export type MapMarker = {
   lng: number
   label: string
   type: 'verified' | 'cms'
+  kind?: 'hospital' | 'doctor'
   address?: string
   phone?: string
+  email?: string
+  subtitle?: string
 }
 
 type ProviderMapProps = {
@@ -18,11 +21,26 @@ type ProviderMapProps = {
   centerLat?: number
   centerLng?: number
   focusedMarkerId?: string | null
+  focusVersion?: number
+  onMarkerSelect?: (marker: MapMarker) => void
+  onRequestBooking?: (marker: MapMarker) => void
 }
 
 const containerStyle = { width: '100%', height: '100%' }
 
-export function ProviderMap({ markers, centerLat = 30.5044, centerLng = -90.4612, focusedMarkerId }: ProviderMapProps) {
+function directionsUrl(marker: MapMarker) {
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${marker.lat},${marker.lng}`)}&destination_place_id=`
+}
+
+export function ProviderMap({
+  markers,
+  centerLat = 30.5044,
+  centerLng = -90.4612,
+  focusedMarkerId,
+  focusVersion = 0,
+  onMarkerSelect,
+  onRequestBooking,
+}: ProviderMapProps) {
   const mapRef = useRef<google.maps.Map | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
@@ -56,9 +74,9 @@ export function ProviderMap({ markers, centerLat = 30.5044, centerLng = -90.4612
     const marker = markers.find((m) => m.id === focusedMarkerId)
     if (!marker) return
     mapRef.current.panTo({ lat: marker.lat, lng: marker.lng })
-    mapRef.current.setZoom(15)
+    mapRef.current.setZoom(16)
     setSelectedId(marker.id)
-  }, [focusedMarkerId, isLoaded, markers])
+  }, [focusVersion, focusedMarkerId, isLoaded, markers])
 
   if (!MAPS_API_KEY || MAPS_API_KEY === 'REPLACE_ME') {
     return (
@@ -81,57 +99,111 @@ export function ProviderMap({ markers, centerLat = 30.5044, centerLng = -90.4612
 
   const selectedMarker = markers.find((m) => m.id === selectedId)
 
+  function selectMarker(marker: MapMarker) {
+    setSelectedId(marker.id)
+    mapRef.current?.panTo({ lat: marker.lat, lng: marker.lng })
+    mapRef.current?.setZoom(16)
+    onMarkerSelect?.(marker)
+  }
+
   return (
     <div className="w-full h-full rounded-2xl overflow-hidden relative">
       <GoogleMap
         mapContainerStyle={containerStyle}
-        options={DEFAULT_MAP_OPTIONS}
+        options={{
+          ...DEFAULT_MAP_OPTIONS,
+          gestureHandling: 'greedy',
+          draggable: true,
+          scrollwheel: true,
+          clickableIcons: false,
+          keyboardShortcuts: true,
+        }}
         onLoad={onLoad}
         onClick={() => setSelectedId(null)}
       >
-        {markers.map((m) => (
+        {markers.map((m) => {
+          const isSelected = m.id === selectedId
+          return (
           <MarkerF
             key={m.id}
             position={{ lat: m.lat, lng: m.lng }}
             title={m.label}
-            onClick={() => setSelectedId(m.id)}
+            zIndex={isSelected ? 20 : 1}
+            onClick={() => selectMarker(m)}
             icon={
               m.type === 'verified'
                 ? {
                     path: window.google.maps.SymbolPath.CIRCLE,
                     fillColor: '#14b8a6',
                     fillOpacity: 1,
-                    strokeWeight: 0,
-                    scale: 10,
+                    strokeColor: '#ffffff',
+                    strokeWeight: isSelected ? 2 : 1,
+                    scale: isSelected ? 8 : 4.5,
                   }
                 : {
                     path: window.google.maps.SymbolPath.CIRCLE,
                     fillColor: '#ffffff',
                     fillOpacity: 0.9,
                     strokeColor: '#94a3b8',
-                    strokeWeight: 2,
-                    scale: 7,
+                    strokeWeight: isSelected ? 2 : 1,
+                    scale: isSelected ? 7 : 4,
                   }
             }
           />
-        ))}
+          )
+        })}
 
         {selectedMarker && (
           <InfoWindowF
             position={{ lat: selectedMarker.lat, lng: selectedMarker.lng }}
             onCloseClick={() => setSelectedId(null)}
           >
-            <div className="p-1 max-w-[200px]">
+            <div className="p-1 max-w-[240px]">
               <p className="font-semibold text-sm text-slate-800 mb-1">{selectedMarker.label}</p>
+              {selectedMarker.subtitle && (
+                <p className="text-xs text-teal-700 font-medium mb-1">{selectedMarker.subtitle}</p>
+              )}
               {selectedMarker.address && (
                 <p className="text-xs text-slate-500 mb-0.5">{selectedMarker.address}</p>
               )}
               {selectedMarker.phone && (
-                <p className="text-xs text-slate-500 mb-1">{selectedMarker.phone}</p>
+                <p className="text-xs text-slate-500 mb-2">{selectedMarker.phone}</p>
               )}
-              {selectedMarker.type === 'cms' && (
-                <p className="text-xs text-slate-400 italic">Not on NowCare yet - call to check availability</p>
-              )}
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                <a
+                  href={directionsUrl(selectedMarker)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-md bg-teal-600 px-2 py-1 text-[11px] font-semibold text-white"
+                >
+                  Directions
+                </a>
+                {selectedMarker.phone && (
+                  <a
+                    href={`tel:${selectedMarker.phone}`}
+                    className="rounded-md bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-700"
+                  >
+                    Call
+                  </a>
+                )}
+                {selectedMarker.email && (
+                  <a
+                    href={`mailto:${selectedMarker.email}`}
+                    className="rounded-md bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-700"
+                  >
+                    Email
+                  </a>
+                )}
+                {selectedMarker.kind === 'hospital' && onRequestBooking && (
+                  <button
+                    type="button"
+                    onClick={() => onRequestBooking(selectedMarker)}
+                    className="rounded-md bg-violet-100 px-2 py-1 text-[11px] font-semibold text-violet-700"
+                  >
+                    Book
+                  </button>
+                )}
+              </div>
             </div>
           </InfoWindowF>
         )}
@@ -139,11 +211,11 @@ export function ProviderMap({ markers, centerLat = 30.5044, centerLng = -90.4612
 
       <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm rounded-xl px-3 py-2 text-xs space-y-1.5 shadow-sm">
         <div className="flex items-center gap-2">
-          <span className="w-3 h-3 rounded-full bg-teal-500 inline-block shrink-0" />
+          <span className="w-2 h-2 rounded-full bg-teal-500 inline-block shrink-0" />
           <span className="text-slate-600">NowCare verified</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="w-3 h-3 rounded-full border-2 border-slate-400 inline-block shrink-0" />
+          <span className="w-2 h-2 rounded-full border border-slate-400 inline-block shrink-0" />
           <span className="text-slate-600">CMS listed - call ahead</span>
         </div>
       </div>

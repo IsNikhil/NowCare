@@ -8,20 +8,16 @@ import { PageHeader } from '../../components/ui/PageHeader'
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner'
 import { AlertTriangle, ArrowLeft } from 'lucide-react'
 import { formatDateTime } from '../../lib/format'
-import type { CareJourney, CareType } from '../../types'
+import { CARE_CATEGORY_CONFIG } from '../../lib/careCategories'
+import type { CareJourney, CareCategory } from '../../types'
 
-const careTypeBadge: Record<CareType, 'danger' | 'warning' | 'teal' | 'success'> = {
-  er: 'danger',
-  urgent: 'warning',
-  telehealth: 'teal',
-  wait: 'success',
-}
-
-const careTypeLabel: Record<CareType, string> = {
-  er: 'Emergency Room',
-  urgent: 'Same-day care',
-  telehealth: 'Telehealth',
-  wait: 'Monitor at Home',
+const careCategoryBadge: Record<CareCategory, 'danger' | 'warning' | 'teal' | 'success' | 'violet'> = {
+  ER_NOW: 'danger',
+  URGENT_TODAY: 'warning',
+  SCAN_NEEDED: 'violet',
+  TELEHEALTH: 'teal',
+  SCHEDULE_DOCTOR: 'teal',
+  SELF_CARE: 'success',
 }
 
 export default function JourneyDetail() {
@@ -74,11 +70,11 @@ export default function JourneyDetail() {
         <Card level={2} padding="md">
           <div className="flex items-center gap-3 mb-4">
             <h3 className="text-sm font-semibold text-ink-800">Assessment result</h3>
-            <Badge variant={careTypeBadge[journey.triage_result.care_type]}>
-              {careTypeLabel[journey.triage_result.care_type]}
+            <Badge variant={careCategoryBadge[journey.triage_result.care_category]}>
+              {CARE_CATEGORY_CONFIG[journey.triage_result.care_category].label}
             </Badge>
           </div>
-          <p className="text-slate-600 leading-relaxed mb-4">{journey.triage_result.reasoning}</p>
+          <p className="text-slate-600 leading-relaxed mb-4">{journey.triage_result.short_reasoning}</p>
           {journey.triage_result.red_flags.length > 0 && (
             <div className="glass-1 rounded-2xl p-4">
               <h4 className="text-xs font-semibold text-rose-500 flex items-center gap-2 mb-2">

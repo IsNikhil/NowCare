@@ -22,7 +22,7 @@ export default function Topbar({ onMenuToggle }: { onMenuToggle?: () => void }) 
 
   return (
     <header
-      className="h-16 flex items-center justify-between px-4 md:px-8 shrink-0 sticky top-0 z-20"
+      className="h-14 md:h-16 flex items-center justify-between gap-2 px-3 sm:px-4 md:px-8 shrink-0 sticky top-0 z-20"
       style={{
         background: 'var(--bg-topbar)',
         borderBottom: '1px solid var(--border-subtle)',
@@ -53,7 +53,7 @@ export default function Topbar({ onMenuToggle }: { onMenuToggle?: () => void }) 
         <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>NowCare</span>
       </div>
 
-      <div className="flex items-center gap-2 ml-auto">
+      <div className="flex min-w-0 items-center gap-1.5 sm:gap-2 ml-auto">
         <ThemeToggle />
 
         {role && (
@@ -62,14 +62,14 @@ export default function Topbar({ onMenuToggle }: { onMenuToggle?: () => void }) 
           </Badge>
         )}
 
-        <div className="flex items-center gap-2 px-2 py-1.5 rounded-xl cursor-pointer hover:bg-[var(--surface-tint)] transition-colors">
+        <div className="flex min-w-0 items-center gap-2 px-1.5 sm:px-2 py-1.5 rounded-xl cursor-pointer hover:bg-[var(--surface-tint)] transition-colors">
           <div
             className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold text-white shrink-0"
             style={{ background: 'linear-gradient(135deg, var(--accent-teal), var(--accent-violet))' }}
           >
             {profile?.email?.charAt(0).toUpperCase() ?? <User size={14} strokeWidth={1.75} />}
           </div>
-          <span className="hidden sm:block text-sm font-medium max-w-[120px] truncate" style={{ color: 'var(--text-primary)' }}>
+          <span className="hidden sm:block text-sm font-medium max-w-[90px] md:max-w-[120px] truncate" style={{ color: 'var(--text-primary)' }}>
             {profile?.email?.split('@')[0] ?? ''}
           </span>
         </div>

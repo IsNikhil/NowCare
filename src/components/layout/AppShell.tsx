@@ -24,7 +24,7 @@ export default function AppShell() {
           'radial-gradient(60vw 60vh at 0% 0%, hsla(168,76%,48%,0.08), transparent 60%), radial-gradient(50vw 50vh at 100% 100%, hsla(265,70%,65%,0.06), transparent 60%)',
       }}
     >
-      <div className="flex h-screen overflow-hidden">
+      <div className="flex h-dvh overflow-hidden">
         {/* Desktop persistent sidebar */}
         <aside
           className="hidden lg:flex w-64 shrink-0 flex-col h-full fixed left-0 top-0 bottom-0 z-30"
@@ -79,16 +79,16 @@ export default function AppShell() {
         </AnimatePresence>
 
         {/* Main content area */}
-        <div className="flex-1 md:ml-[72px] lg:ml-64 flex flex-col h-screen overflow-hidden">
+        <div className="flex-1 md:ml-[72px] lg:ml-64 flex flex-col h-dvh overflow-hidden">
           <TopBar onMenuToggle={() => setSidebarOpen(!sidebarOpen)} />
-          <main className="flex-1 overflow-y-auto pb-24 md:pb-8">
+          <main className="flex-1 overflow-x-hidden overflow-y-auto pb-28 md:pb-8">
             <motion.div
               key={location.pathname}
               variants={pageTransition}
               initial="initial"
               animate="animate"
               exit="exit"
-              className="w-full p-4 md:p-6 lg:p-8"
+              className="w-full max-w-full p-3 sm:p-4 md:p-6 lg:p-8"
             >
               <Outlet />
             </motion.div>

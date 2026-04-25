@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom'
 import { where, orderBy, doc, updateDoc, serverTimestamp } from 'firebase/firestore'
 import { motion } from 'framer-motion'
 import {
-  Activity, HardDrive, Phone, MapPin, AlertCircle, CheckCircle,
-  Clock, TrendingUp, ChevronRight, Scan, Star,
+  Activity, HardDrive, Phone, MapPin, AlertCircle,
+  Clock, TrendingUp, Scan, Star,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { db } from '../../services/firebase'
@@ -13,7 +13,6 @@ import { useFirestoreDoc } from '../../hooks/useFirestoreDoc'
 import { useFirestoreCollection } from '../../hooks/useFirestoreCollection'
 import { GlassCard } from '../../components/ui/GlassCard'
 import { Badge } from '../../components/ui/Badge'
-import { Button } from '../../components/ui/Button'
 import { SkeletonCard } from '../../components/ui/Skeleton'
 import { formatDateTime, formatRelativeTime } from '../../lib/format'
 import { fadeRise, stagger } from '../../lib/motion'
@@ -149,7 +148,7 @@ export default function HospitalDashboard() {
                           key={i}
                           size={11}
                           strokeWidth={1.75}
-                          fill={i < (cms.overall_rating ?? 0) ? 'var(--accent-amber)' : 'transparent'}
+                          fill={i < Number(cms.overall_rating ?? 0) ? 'var(--accent-amber)' : 'transparent'}
                           style={{ color: 'var(--accent-amber)' }}
                         />
                       ))}

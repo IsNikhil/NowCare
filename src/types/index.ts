@@ -199,6 +199,7 @@ export type PatientDocument = {
   category: DocumentCategory
   analysis?: DocumentAnalysis
   analysisStatus: AnalysisStatus
+  analysisError?: string
   fileSize?: number
 }
 

@@ -25,6 +25,26 @@ const STATUS_CONFIG: Record<FindingStatus, { label: string; color: string; bg: s
   info: { label: 'Info', color: 'var(--accent-violet)', bg: 'hsla(265,70%,65%,0.1)' },
 }
 
+function readLocalDocument(uid: string, docId: string): PatientDocument | null {
+  try {
+    const raw = window.localStorage.getItem(`nowcare:patient_documents:${uid}`)
+    if (!raw) return null
+    const docs = JSON.parse(raw) as Array<Omit<PatientDocument, 'uploadedAt'> & { uploadedAtMs: number }>
+    const match = docs.find((d) => d.docId === docId)
+    if (!match) return null
+    const { uploadedAtMs, ...rest } = match
+    return {
+      ...rest,
+      uploadedAt: {
+        toDate: () => new Date(uploadedAtMs),
+        toMillis: () => uploadedAtMs,
+      } as PatientDocument['uploadedAt'],
+    }
+  } catch {
+    return null
+  }
+}
+
 function FindingRow({ finding }: { finding: DocumentFinding }) {
   const [expanded, setExpanded] = useState(false)
   const cfg = STATUS_CONFIG[finding.status]
@@ -32,12 +52,12 @@ function FindingRow({ finding }: { finding: DocumentFinding }) {
   return (
     <div className="border-b last:border-b-0" style={{ borderColor: 'var(--border-subtle)' }}>
       <button
-        className="w-full flex items-center gap-3 p-4 text-left hover:bg-[var(--surface-tint)] transition-colors"
+        className="w-full flex flex-wrap items-center gap-3 p-4 text-left hover:bg-[var(--surface-tint)] transition-colors sm:flex-nowrap"
         onClick={() => setExpanded(!expanded)}
       >
         <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: cfg.color }} />
         <span className="flex-1 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{finding.label}</span>
-        <span className="font-mono text-base font-bold shrink-0" style={{ color: cfg.color }}>{finding.value}</span>
+        <span className="min-w-0 break-words font-mono text-sm sm:text-base font-bold sm:shrink-0" style={{ color: cfg.color }}>{finding.value}</span>
         {finding.reference_range && (
           <span className="text-xs hidden sm:block shrink-0" style={{ color: 'var(--text-muted)' }}>
             ref: {finding.reference_range}
@@ -120,7 +140,7 @@ function DocumentQA({ analysis }: { analysis: NonNullable<PatientDocument['analy
           {messages.map((m, i) => (
             <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div
-                className="max-w-[80%] rounded-2xl px-4 py-2.5 text-sm"
+                className="max-w-[92%] sm:max-w-[80%] rounded-2xl px-4 py-2.5 text-sm"
                 style={{
                   background: m.role === 'user' ? 'var(--accent-teal)' : 'var(--surface-tint)',
                   color: m.role === 'user' ? 'white' : 'var(--text-primary)',
@@ -172,7 +192,7 @@ export default function DocumentDetail() {
     user ? [where('patientId', '==', user.uid), where('docId', '==', docId ?? '')] : []
   )
 
-  const document = documents[0]
+  const document = documents[0] ?? (user && docId ? readLocalDocument(user.uid, docId) : null)
   const analysis = document?.analysis
 
   function copyQuestion(text: string, idx: number) {
@@ -189,9 +209,9 @@ export default function DocumentDetail() {
     toast.success('All questions copied')
   }
 
-  if (loading) return <div className="max-w-3xl mx-auto"><SkeletonCard lines={5} /></div>
+  if (loading) return <div className="mx-auto max-w-3xl"><SkeletonCard lines={5} /></div>
   if (!document) return (
-    <div className="max-w-3xl mx-auto text-center py-20">
+    <div className="mx-auto max-w-3xl text-center py-20">
       <p style={{ color: 'var(--text-muted)' }}>Document not found.</p>
       <Button variant="secondary" className="mt-4" onClick={() => navigate('/patient/documents')}>Back</Button>
     </div>
@@ -206,7 +226,7 @@ export default function DocumentDetail() {
   const attentionCount = analysis?.key_findings?.filter((f) => f.status !== 'normal' && f.status !== 'info').length ?? 0
 
   return (
-    <motion.div variants={stagger} initial="initial" animate="animate" className="max-w-3xl mx-auto space-y-5">
+    <motion.div variants={stagger} initial="initial" animate="animate" className="mx-auto max-w-3xl space-y-5">
       {/* Back */}
       <motion.div variants={fadeRise}>
         <button onClick={() => navigate('/patient/documents')}
@@ -246,7 +266,7 @@ export default function DocumentDetail() {
       {/* Header card */}
       <motion.div variants={fadeRise}>
         <GlassCard variant="elevated" className="p-6">
-          <div className="flex items-start gap-4 mb-5">
+          <div className="flex flex-col gap-4 mb-5 sm:flex-row sm:items-start">
             <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
               style={{ background: 'hsla(265,70%,65%,0.1)', color: 'var(--accent-violet)' }}>
               <FileText size={24} strokeWidth={1.5} />
@@ -302,7 +322,7 @@ export default function DocumentDetail() {
           )}
 
           {/* Quick stats */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-3">
             {[
               { label: 'Total findings', value: analysis?.key_findings?.length ?? 0, color: 'var(--text-primary)' },
               { label: 'Need attention', value: attentionCount, color: attentionCount > 0 ? 'var(--accent-coral)' : 'var(--accent-green)' },

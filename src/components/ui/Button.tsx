@@ -1,15 +1,19 @@
-import type { ButtonHTMLAttributes } from 'react'
+import type { AnchorHTMLAttributes, ButtonHTMLAttributes } from 'react'
 import { Loader2 } from 'lucide-react'
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger'
 type Size = 'sm' | 'md' | 'lg'
 
-type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+type ButtonOwnProps = {
   variant?: Variant
   size?: Size
   loading?: boolean
   fullWidth?: boolean
 }
+
+type ButtonProps =
+  | (ButtonHTMLAttributes<HTMLButtonElement> & ButtonOwnProps & { as?: 'button' })
+  | (AnchorHTMLAttributes<HTMLAnchorElement> & ButtonOwnProps & { as: 'a' })
 
 const variantClasses: Record<Variant, string> = {
   primary: 'btn-primary text-white',
@@ -25,29 +29,43 @@ const sizeClasses: Record<Size, string> = {
 }
 
 export function Button({
+  as = 'button',
   variant = 'primary',
   size = 'md',
   loading = false,
   fullWidth = false,
   className = '',
-  disabled,
   children,
   ...props
 }: ButtonProps) {
+  const classes = [
+    'btn-base',
+    variantClasses[variant],
+    sizeClasses[size],
+    fullWidth ? 'w-full' : '',
+    'disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:transform-none',
+    className,
+  ]
+    .filter(Boolean)
+    .join(' ')
+
+  if (as === 'a') {
+    const anchorProps = props as AnchorHTMLAttributes<HTMLAnchorElement>
+    return (
+      <a className={classes} {...anchorProps}>
+        {loading && <Loader2 size={16} strokeWidth={1.75} className="animate-spin" />}
+        {children}
+      </a>
+    )
+  }
+
+  const buttonProps = props as ButtonHTMLAttributes<HTMLButtonElement>
+  const disabled = buttonProps.disabled
   return (
     <button
       disabled={disabled || loading}
-      className={[
-        'btn-base',
-        variantClasses[variant],
-        sizeClasses[size],
-        fullWidth ? 'w-full' : '',
-        'disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:transform-none',
-        className,
-      ]
-        .filter(Boolean)
-        .join(' ')}
-      {...props}
+      className={classes}
+      {...buttonProps}
     >
       {loading && <Loader2 size={16} strokeWidth={1.75} className="animate-spin" />}
       {children}

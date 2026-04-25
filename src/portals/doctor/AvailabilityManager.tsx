@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { collection, addDoc, deleteDoc, doc, Timestamp, where, orderBy } from 'firebase/firestore'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { Plus, Trash2, CalendarDays, Clock } from 'lucide-react'
 import { toast } from 'sonner'
 import { db } from '../../services/firebase'
@@ -11,7 +11,7 @@ import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { SkeletonList } from '../../components/ui/Skeleton'
 import { formatDate, formatTime } from '../../lib/format'
-import { fadeRise, stagger, scaleIn } from '../../lib/motion'
+import { fadeRise, stagger } from '../../lib/motion'
 import type { DoctorSlot } from '../../types'
 
 const TIME_OPTIONS = (() => {
@@ -126,9 +126,9 @@ export default function AvailabilityManager() {
   }
 
   return (
-    <motion.div variants={stagger} initial="initial" animate="animate" className="max-w-4xl mx-auto space-y-6">
+    <motion.div variants={stagger} initial="initial" animate="animate" className="mx-auto max-w-4xl space-y-6 overflow-hidden">
       <motion.div variants={fadeRise}>
-        <h1 className="text-3xl font-extrabold tracking-tight mb-1" style={{ color: 'var(--text-primary)' }}>Availability</h1>
+        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight mb-1" style={{ color: 'var(--text-primary)' }}>Availability</h1>
         <p className="text-base" style={{ color: 'var(--text-secondary)' }}>Add appointment slots for patients to book.</p>
       </motion.div>
 
@@ -156,7 +156,7 @@ export default function AvailabilityManager() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-3">
                 <div>
                   <FieldLabel>Start time</FieldLabel>
                   <NativeSelect value={startTime} onChange={setStartTime}>
@@ -171,7 +171,7 @@ export default function AvailabilityManager() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-3">
                 <div>
                   <FieldLabel>Duration</FieldLabel>
                   <NativeSelect value={duration} onChange={setDuration}>
@@ -243,7 +243,7 @@ export default function AvailabilityManager() {
                 {slots.map((slot) => {
                   const isOpen = slot.available !== false && slot.status !== 'reserved'
                   return (
-                    <div key={slot.id} className="flex items-center gap-3 p-2.5 rounded-xl transition-colors" style={{ background: 'var(--surface-tint)' }}>
+                    <div key={slot.id} className="flex flex-wrap items-center gap-3 p-2.5 rounded-xl transition-colors sm:flex-nowrap" style={{ background: 'var(--surface-tint)' }}>
                       <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: isOpen ? 'var(--accent-teal)' : 'var(--accent-violet)' }} />
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>

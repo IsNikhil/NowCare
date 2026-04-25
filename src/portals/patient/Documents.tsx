@@ -1,7 +1,7 @@
-import { useState, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useDropzone } from 'react-dropzone'
-import { where, orderBy, addDoc, collection, doc, updateDoc, serverTimestamp } from 'firebase/firestore'
+import { where, orderBy, addDoc, collection, doc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore'
 import { motion } from 'framer-motion'
 import { Upload, FileText, AlertTriangle, CheckCircle, Clock, X, ChevronRight, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
@@ -15,7 +15,7 @@ import { Badge } from '../../components/ui/Badge'
 import { SkeletonList } from '../../components/ui/Skeleton'
 import { formatDate } from '../../lib/format'
 import { fadeRise, stagger } from '../../lib/motion'
-import type { PatientDocument, DocumentCategory } from '../../types'
+import type { PatientDocument, DocumentCategory, WithId } from '../../types'
 
 const MAX_SIZE = 20 * 1024 * 1024 // 20MB
 const STORAGE_UPLOAD_TIMEOUT_MS = 25000
@@ -35,6 +35,49 @@ const CATEGORY_LABELS: Record<DocumentCategory, string> = {
   other: 'Other',
 }
 
+type LocalPatientDocument = Omit<PatientDocument, 'uploadedAt'> & {
+  id: string
+  uploadedAtMs: number
+}
+
+function localDocumentKey(uid: string) {
+  return `nowcare:patient_documents:${uid}`
+}
+
+function makeTimestamp(ms: number): Timestamp {
+  return Timestamp.fromMillis(ms)
+}
+
+function readLocalDocuments(uid: string): WithId<PatientDocument>[] {
+  try {
+    const raw = window.localStorage.getItem(localDocumentKey(uid))
+    if (!raw) return []
+    const docs = JSON.parse(raw) as LocalPatientDocument[]
+    return docs.map((d) => {
+      const { uploadedAtMs, ...rest } = d
+      return {
+        ...rest,
+        uploadedAt: makeTimestamp(uploadedAtMs),
+      }
+    })
+  } catch {
+    return []
+  }
+}
+
+function writeLocalDocument(uid: string, document: WithId<PatientDocument>) {
+  const existing = readLocalDocuments(uid)
+  const next = [document, ...existing.filter((d) => d.id !== document.id)]
+  const serializable: LocalPatientDocument[] = next.map((d) => {
+    const { uploadedAt, ...rest } = d
+    return {
+      ...rest,
+      uploadedAtMs: uploadedAt.toMillis(),
+    }
+  })
+  window.localStorage.setItem(localDocumentKey(uid), JSON.stringify(serializable))
+}
+
 function detectCategory(filename: string): DocumentCategory {
   const lower = filename.toLowerCase()
   if (lower.includes('lab') || lower.includes('blood') || lower.includes('cbc') || lower.includes('result')) return 'lab_result'
@@ -48,6 +91,36 @@ function getErrorMessage(error: unknown) {
   if (error instanceof Error) return error.message
   if (typeof error === 'string') return error
   return 'Unknown error'
+}
+
+function getFriendlyStorageError(error: unknown) {
+  const message = getErrorMessage(error)
+  const lower = message.toLowerCase()
+  if (lower.includes('permission') || lower.includes('unauthorized')) {
+    return 'Firebase Storage blocked this upload. Deploy the Storage rules in this project, then try again.'
+  }
+  if (lower.includes('timed out') || lower.includes('timeout') || lower.includes('did not respond')) {
+    return 'Firebase Storage did not respond before the timeout. Check the bucket configuration and try again.'
+  }
+  if (lower.includes('bucket') || lower.includes('storage')) {
+    return 'Firebase Storage could not store the original file. Check the configured storage bucket and rules.'
+  }
+  return message
+}
+
+function getFriendlyAnalysisError(file: File, error: unknown) {
+  const message = getErrorMessage(error)
+  const lower = message.toLowerCase()
+  if (lower.includes('api key') || lower.includes('permission') || lower.includes('unauthorized')) {
+    return 'Gemini could not analyze this file because the API request was not authorized.'
+  }
+  if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+    return 'Gemini could not analyze this DOCX. Try exporting it as a PDF if this keeps happening.'
+  }
+  if (file.type.startsWith('image/')) {
+    return 'Gemini could not read enough text from this image. Try a clearer image or upload a PDF.'
+  }
+  return message
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
@@ -89,7 +162,7 @@ function UploadZone({ onUpload }: { onUpload: (files: File[]) => void }) {
   return (
     <div
       {...getRootProps()}
-      className="cursor-pointer rounded-2xl border-2 border-dashed p-10 text-center transition-all duration-200"
+      className="cursor-pointer rounded-2xl border-2 border-dashed p-6 sm:p-10 text-center transition-all duration-200"
       style={{
         borderColor: isDragging ? 'var(--accent-teal)' : 'var(--border-subtle)',
         background: isDragging ? 'var(--accent-teal-glow)' : 'var(--surface-tint)',
@@ -97,7 +170,7 @@ function UploadZone({ onUpload }: { onUpload: (files: File[]) => void }) {
     >
       <input {...getInputProps()} />
       <div
-        className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 transition-all"
+        className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 transition-all"
         style={{
           background: isDragging ? 'var(--accent-teal-glow)' : 'var(--bg-elevated)',
           color: isDragging ? 'var(--accent-teal)' : 'var(--text-muted)',
@@ -111,7 +184,7 @@ function UploadZone({ onUpload }: { onUpload: (files: File[]) => void }) {
       <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
         PDF, JPG, PNG, DOCX up to 20 MB
       </p>
-      <div className="flex justify-center gap-3 mt-4">
+      <div className="flex flex-wrap justify-center gap-2 sm:gap-3 mt-4">
         {['PDF', 'JPG', 'PNG', 'DOCX'].map((t) => (
           <span key={t} className="text-xs px-2 py-0.5 rounded-md font-mono"
             style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border-subtle)' }}>
@@ -127,55 +200,101 @@ export default function Documents() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const [uploading, setUploading] = useState<Record<string, number>>({})
+  const [localDocuments, setLocalDocuments] = useState<WithId<PatientDocument>[]>([])
 
   const { data: documents, loading } = useFirestoreCollection<PatientDocument>(
     'patient_documents',
     user ? [where('patientId', '==', user.uid), orderBy('uploadedAt', 'desc')] : []
   )
 
+  useEffect(() => {
+    if (!user) {
+      setLocalDocuments([])
+      return
+    }
+    setLocalDocuments(readLocalDocuments(user.uid))
+  }, [user])
+
+  const visibleDocuments = [...documents, ...localDocuments].sort(
+    (a, b) => (b.uploadedAt?.toMillis?.() ?? 0) - (a.uploadedAt?.toMillis?.() ?? 0)
+  ).filter((doc, index, all) => all.findIndex((item) => item.docId === doc.docId) === index)
+
+  async function saveLocalFallback(file: File, docId: string, category: DocumentCategory, warning: string) {
+    if (!user) return
+    setUploading((prev) => ({ ...prev, [docId]: 35 }))
+    let analysis: PatientDocument['analysis'] | undefined
+    let analysisStatus: PatientDocument['analysisStatus'] = 'pending'
+    let analysisError: string | undefined
+
+    try {
+      let fileToAnalyze = file
+      if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+        const mammoth = await import('mammoth')
+        const buffer = await file.arrayBuffer()
+        const { value: text } = await mammoth.extractRawText({ arrayBuffer: buffer })
+        fileToAnalyze = new File([text], file.name, { type: 'text/plain' })
+      }
+      analysis = await analyzeDocument(fileToAnalyze)
+      analysisStatus = 'complete'
+      setUploading((prev) => ({ ...prev, [docId]: 100 }))
+      toast.success(`Analysis complete for ${file.name}. Saved locally on this device.`)
+    } catch (error) {
+      analysisStatus = 'failed'
+      analysisError = getFriendlyAnalysisError(file, error)
+      toast.error(`Could not analyze ${file.name}, but it was saved locally.`)
+    }
+
+    const localDoc: WithId<PatientDocument> = {
+      id: `local-${docId}`,
+      docId,
+      patientId: user.uid,
+      filename: file.name,
+      storagePath: '',
+      contentType: file.type,
+      uploadedAt: makeTimestamp(Date.now()),
+      category,
+      analysis,
+      analysisStatus,
+      analysisError,
+      fileSize: file.size,
+      uploadWarning: warning,
+    }
+    writeLocalDocument(user.uid, localDoc)
+    setLocalDocuments(readLocalDocuments(user.uid))
+  }
+
   const handleUpload = useCallback(async (files: File[]) => {
     if (!user) return
     for (const file of files) {
       const docId = `${Date.now()}_${Math.random().toString(36).slice(2)}`
       const category = detectCategory(file.name)
-      let docRefId: string | null = null
       setUploading((prev) => ({ ...prev, [docId]: 5 }))
       try {
+        toast.success(`Uploading ${file.name}...`)
+        const { downloadUrl, storagePath } = await withTimeout(
+          uploadPatientDocument(user.uid, docId, file, (pct) => {
+            setUploading((prev) => ({ ...prev, [docId]: Math.max(5, Math.min(45, pct * 0.4 + 5)) }))
+          }),
+          STORAGE_UPLOAD_TIMEOUT_MS,
+          'Firebase Storage did not respond in time.'
+        )
+        setUploading((prev) => ({ ...prev, [docId]: 50 }))
+
         const docRef = await addDoc(collection(db, 'patient_documents'), {
           docId,
           patientId: user.uid,
           filename: file.name,
-          storagePath: '',
+          storagePath,
+          downloadUrl,
           contentType: file.type,
           uploadedAt: serverTimestamp(),
           category,
           analysisStatus: 'pending',
           fileSize: file.size,
         })
-        docRefId = docRef.id
 
         toast.success(`Added ${file.name}. Analyzing...`)
-        setUploading((prev) => ({ ...prev, [docId]: 20 }))
-
-        try {
-          const { downloadUrl, storagePath } = await withTimeout(
-            uploadPatientDocument(user.uid, docId, file, (pct) => {
-              setUploading((prev) => ({ ...prev, [docId]: Math.max(20, Math.min(75, pct * 0.55 + 20)) }))
-            }),
-            STORAGE_UPLOAD_TIMEOUT_MS,
-            'Firebase Storage did not respond in time.'
-          )
-          await updateDoc(doc(db, 'patient_documents', docRef.id), { downloadUrl, storagePath })
-          setUploading((prev) => ({ ...prev, [docId]: 78 }))
-        } catch (error) {
-          const message = getErrorMessage(error)
-          await updateDoc(doc(db, 'patient_documents', docRef.id), {
-            storagePath: '',
-            uploadWarning: message,
-          })
-          toast.warning(`Saved ${file.name}, but the raw file could not be stored. Check Firebase Storage rules.`)
-          setUploading((prev) => ({ ...prev, [docId]: 78 }))
-        }
+        setUploading((prev) => ({ ...prev, [docId]: 65 }))
 
         try {
           let fileToAnalyze = file
@@ -190,26 +309,19 @@ export default function Documents() {
           await updateDoc(doc(db, 'patient_documents', docRef.id), {
             analysis,
             analysisStatus: 'complete',
+            analysisError: '',
           })
           setUploading((prev) => ({ ...prev, [docId]: 100 }))
           toast.success(`Analysis complete for ${file.name}`)
-        } catch {
-          await updateDoc(doc(db, 'patient_documents', docRef.id), { analysisStatus: 'failed' })
-          toast.error(
-            `Could not analyze ${file.name}.` +
-              (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-                ? ' Try PDF, JPG, or PNG if this keeps happening.'
-                : '')
-          )
+        } catch (error) {
+          const analysisError = getFriendlyAnalysisError(file, error)
+          await updateDoc(doc(db, 'patient_documents', docRef.id), { analysisStatus: 'failed', analysisError })
+          toast.error(`Could not analyze ${file.name}. ${analysisError}`)
         }
       } catch (error) {
-        if (docRefId) {
-          await updateDoc(doc(db, 'patient_documents', docRefId), {
-            analysisStatus: 'failed',
-            uploadWarning: getErrorMessage(error),
-          }).catch(() => {})
-        }
-        toast.error(`Upload failed for ${file.name}: ${getErrorMessage(error)}`)
+        const message = getFriendlyStorageError(error)
+        toast.warning(`Cloud file upload failed. Saving ${file.name} locally instead.`)
+        await saveLocalFallback(file, docId, category, message)
       } finally {
         setUploading((prev) => { const n = { ...prev }; delete n[docId]; return n })
       }
@@ -217,12 +329,12 @@ export default function Documents() {
   }, [user])
 
   return (
-    <motion.div variants={stagger} initial="initial" animate="animate" className="max-w-3xl mx-auto space-y-6">
+    <motion.div variants={stagger} initial="initial" animate="animate" className="mx-auto max-w-3xl space-y-6">
       <motion.div variants={fadeRise}>
         <div className="flex items-center justify-between mb-1">
-          <h1 className="text-3xl font-extrabold tracking-tight" style={{ color: 'var(--text-primary)' }}>My Documents</h1>
-          {documents.length > 0 && (
-            <span className="text-sm font-mono" style={{ color: 'var(--text-muted)' }}>{documents.length} files</span>
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight" style={{ color: 'var(--text-primary)' }}>My Documents</h1>
+          {visibleDocuments.length > 0 && (
+            <span className="text-sm font-mono" style={{ color: 'var(--text-muted)' }}>{visibleDocuments.length} files</span>
           )}
         </div>
         <p className="text-base" style={{ color: 'var(--text-secondary)' }}>
@@ -261,9 +373,9 @@ export default function Documents() {
       {/* Document list */}
       {loading && <SkeletonList count={3} />}
 
-      {!loading && documents.length === 0 && Object.keys(uploading).length === 0 && (
+      {!loading && visibleDocuments.length === 0 && Object.keys(uploading).length === 0 && (
         <motion.div variants={fadeRise}>
-          <GlassCard className="p-10 text-center">
+          <GlassCard className="p-6 sm:p-10 text-center">
             <div className="w-16 h-16 rounded-3xl flex items-center justify-center mx-auto mb-4"
               style={{ background: 'var(--surface-tint)', color: 'var(--text-muted)' }}>
               <FileText size={32} strokeWidth={1.25} />
@@ -276,16 +388,16 @@ export default function Documents() {
         </motion.div>
       )}
 
-      {documents.length > 0 && (
+      {visibleDocuments.length > 0 && (
         <motion.div variants={stagger} className="space-y-3">
-          {documents.map((d, i) => (
+          {visibleDocuments.map((d, i) => (
             <motion.div key={d.id} variants={fadeRise} style={{ transitionDelay: `${i * 40}ms` }}>
               <GlassCard
                 variant="interactive"
                 className="p-4 cursor-pointer"
                 onClick={() => navigate(`/patient/documents/${d.docId}`)}
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-start gap-3">
                   <div
                     className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
                     style={{
@@ -319,7 +431,7 @@ export default function Documents() {
                       {d.analysisStatus === 'failed' && (
                         <Badge variant="danger">
                           <X size={10} strokeWidth={2} className="mr-1" />
-                          Failed
+                          Needs retry
                         </Badge>
                       )}
                     </div>
@@ -361,6 +473,21 @@ export default function Documents() {
                     Open uploaded file
                   </button>
                 )}
+                {d.analysisStatus === 'failed' && (
+                  <div
+                    className="mt-3 flex items-start gap-2 rounded-xl border px-3 py-2 text-xs leading-relaxed"
+                    style={{
+                      borderColor: 'hsla(8,90%,65%,0.22)',
+                      background: 'hsla(8,90%,65%,0.08)',
+                      color: 'var(--text-secondary)',
+                    }}
+                  >
+                    <AlertTriangle size={13} strokeWidth={1.75} className="mt-0.5 shrink-0" style={{ color: 'var(--accent-coral)' }} />
+                    <span>
+                      {d.analysisError ?? 'The file was saved, but AI analysis did not finish. Upload a clearer PDF/image or try again.'}
+                    </span>
+                  </div>
+                )}
                 {d.uploadWarning && (
                   <div
                     className="mt-3 flex items-start gap-2 rounded-xl border px-3 py-2 text-xs leading-relaxed"
@@ -371,9 +498,7 @@ export default function Documents() {
                     }}
                   >
                     <AlertTriangle size={13} strokeWidth={1.75} className="mt-0.5 shrink-0" style={{ color: 'var(--accent-amber)' }} />
-                    <span>
-                      Report saved, but the original file was not stored in Firebase Storage. Deploy storage rules if you need the file link.
-                    </span>
+                    <span>{d.uploadWarning}</span>
                   </div>
                 )}
               </GlassCard>

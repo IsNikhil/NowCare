@@ -7,7 +7,7 @@ export const ER_STATUS_OPTIONS: { value: ERStatus; label: string; color: string 
   { value: 'closed', label: 'Closed', color: 'slate' },
 ]
 
-export const SCAN_TYPES: ScanType[] = ['MRI', 'CT Scan', 'X-Ray', 'Ultrasound']
+export const SCAN_TYPES: ScanType[] = ['MRI', 'CT', 'X-Ray', 'Ultrasound']
 
 export const TRIAGE_LEVELS: {
   care_type: CareType

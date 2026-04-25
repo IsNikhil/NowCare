@@ -209,16 +209,16 @@ export default function PatientProfile() {
   }
 
   return (
-    <motion.div variants={stagger} initial="initial" animate="animate" className="mx-auto max-w-5xl space-y-6">
+    <motion.div variants={stagger} initial="initial" animate="animate" className="mx-auto max-w-5xl space-y-6 overflow-hidden">
       <motion.div variants={fadeRise}>
-        <h1 className="text-3xl font-extrabold tracking-tight mb-1" style={{ color: 'var(--text-primary)' }}>Profile</h1>
+        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight mb-1" style={{ color: 'var(--text-primary)' }}>Profile</h1>
         <p className="text-base" style={{ color: 'var(--text-secondary)' }}>
           Keep your health details current so assessments and provider search have better context.
         </p>
       </motion.div>
 
       <motion.div variants={fadeRise}>
-        <GlassCard variant="elevated" className="p-5">
+        <GlassCard variant="elevated" className="p-4 sm:p-5">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
             <div className="relative h-24 w-24 shrink-0">
               {photoPreview || patient?.photoURL ? (
@@ -258,7 +258,7 @@ export default function PatientProfile() {
             </div>
 
             <div className="min-w-0 flex-1">
-              <p className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text-primary)' }}>{displayName}</p>
+              <p className="break-words text-xl sm:text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text-primary)' }}>{displayName}</p>
               <p className="mt-1 text-sm" style={{ color: 'var(--text-muted)' }}>{user?.email}</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {[
@@ -273,7 +273,7 @@ export default function PatientProfile() {
               </div>
             </div>
 
-            <Button onClick={handleSave} loading={saving}>
+            <Button onClick={handleSave} loading={saving} className="w-full sm:w-auto">
               <Save size={16} strokeWidth={1.75} />
               Save changes
             </Button>
@@ -283,7 +283,7 @@ export default function PatientProfile() {
 
       <div className="grid gap-6 lg:grid-cols-[1.4fr_0.8fr]">
         <motion.div variants={fadeRise} className="space-y-6">
-          <GlassCard className="p-5">
+          <GlassCard className="p-4 sm:p-5">
             <div className="mb-5 flex items-center gap-2">
               <User size={18} strokeWidth={1.75} style={{ color: 'var(--accent-teal)' }} />
               <h2 className="font-bold" style={{ color: 'var(--text-primary)' }}>Personal details</h2>
@@ -304,7 +304,7 @@ export default function PatientProfile() {
             </div>
           </GlassCard>
 
-          <GlassCard className="p-5">
+          <GlassCard className="p-4 sm:p-5">
             <div className="mb-5 flex items-center gap-2">
               <Activity size={18} strokeWidth={1.75} style={{ color: 'var(--accent-violet)' }} />
               <h2 className="font-bold" style={{ color: 'var(--text-primary)' }}>Health background</h2>

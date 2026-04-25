@@ -129,9 +129,9 @@ export default function Assess() {
   // ─── Input phase ────────────────────────────────────────────────────────────
   if (phase === 'input') {
     return (
-      <motion.div variants={stagger} initial="initial" animate="animate" className="max-w-2xl mx-auto">
-        <motion.div variants={fadeRise} className="mb-8">
-          <h1 className="text-3xl font-extrabold tracking-tight mb-1" style={{ color: 'var(--text-primary)' }}>
+      <motion.div variants={stagger} initial="initial" animate="animate" className="mx-auto max-w-2xl">
+        <motion.div variants={fadeRise} className="mb-6 md:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight mb-1" style={{ color: 'var(--text-primary)' }}>
             How are you feeling?
           </h1>
           <p className="text-base" style={{ color: 'var(--text-secondary)' }}>
@@ -163,7 +163,7 @@ export default function Assess() {
               </span>
             </div>
 
-            <div className="mt-4 flex items-center gap-3">
+            <div className="mt-4 flex flex-wrap items-center gap-3">
               {SpeechAPI && (
                 <button
                   type="button"
@@ -188,7 +188,7 @@ export default function Assess() {
                 onClick={handleSubmit}
                 disabled={symptoms.trim().length < 5}
                 size="lg"
-                className="ml-auto"
+                className="ml-auto max-sm:w-full"
               >
                 Get recommendation
                 <ArrowRight size={16} strokeWidth={1.75} />
@@ -227,13 +227,13 @@ export default function Assess() {
   // ─── Loading phase ────────────────────────────────────────────────────────
   if (phase === 'loading') {
     return (
-      <div className="max-w-2xl mx-auto">
+      <div className="mx-auto max-w-2xl">
         <GlassCard className="p-5 mb-4">
           <p className="text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Your symptoms</p>
           <p className="text-sm" style={{ color: 'var(--text-primary)' }}>{symptoms.slice(0, 120)}{symptoms.length > 120 ? '...' : ''}</p>
         </GlassCard>
 
-        <GlassCard variant="elevated" className="p-10 text-center">
+        <GlassCard variant="elevated" className="p-6 sm:p-10 text-center">
           <div className="relative w-20 h-20 mx-auto mb-6">
             <div
               className="conic-ring absolute inset-0 rounded-full"

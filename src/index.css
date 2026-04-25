@@ -23,6 +23,7 @@
     min-height: 100dvh;
     background-color: var(--bg-base);
     color: var(--text-primary);
+    overflow-x: hidden;
   }
 
   #root {
@@ -76,6 +77,13 @@
     border: none;
     outline: none;
     white-space: nowrap;
+  }
+
+  @media (max-width: 420px) {
+    .btn-base {
+      white-space: normal;
+      line-height: 1.15;
+    }
   }
 
   .btn-base:focus-visible {

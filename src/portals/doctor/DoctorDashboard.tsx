@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { where, orderBy, Timestamp } from 'firebase/firestore'
+import { where, orderBy } from 'firebase/firestore'
 import { motion } from 'framer-motion'
 import {
   CalendarDays, Clock, Users, Sparkles, AlertCircle, ChevronRight,
@@ -15,7 +15,7 @@ import { Button } from '../../components/ui/Button'
 import { SkeletonCard } from '../../components/ui/Skeleton'
 import { VerificationBadge } from '../../components/providers/VerificationBadge'
 import { generateDoctorInsights } from '../../services/gemini'
-import { formatDate, formatTime, formatRelativeTime } from '../../lib/format'
+import { formatDate, formatTime } from '../../lib/format'
 import { fadeRise, stagger } from '../../lib/motion'
 import type { Doctor, DoctorSlot } from '../../types'
 
@@ -50,7 +50,6 @@ function StatCard({ label, value, sublabel, color, icon }: {
 }
 
 function SlotRow({ slot }: { slot: DoctorSlot }) {
-  const isPast = slot.datetime.toDate() < new Date()
   return (
     <div className="flex items-center gap-3 py-3 border-b last:border-0" style={{ borderColor: 'var(--border-subtle)' }}>
       <div
@@ -125,7 +124,7 @@ export default function DoctorDashboard() {
   useEffect(() => {
     if (!doctor || !doctor.verified || loadingInsights || insights.length > 0) return
     setLoadingInsights(true)
-    const reasons = upcomingSlots.map((s) => 'Patient visit').concat(['Consultation', 'Follow-up'])
+    const reasons = upcomingSlots.map(() => 'Patient visit').concat(['Consultation', 'Follow-up'])
     generateDoctorInsights(doctorName, doctor.specialty ?? 'General', reasons)
       .then(setInsights)
       .finally(() => setLoadingInsights(false))

@@ -9,12 +9,28 @@ service firebase.storage {
       return isSignedIn() && request.auth.uid == uid;
     }
 
+    function isSupportedDocument() {
+      return request.resource.size <= 20 * 1024 * 1024
+        && (
+          request.resource.contentType.matches('image/.*')
+          || request.resource.contentType == 'application/pdf'
+          || request.resource.contentType == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        );
+    }
+
+    function isSupportedProfilePhoto() {
+      return request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
     match /users/{uid}/documents/{docId}/{fileName} {
-      allow read, write: if isOwner(uid);
+      allow read, delete: if isOwner(uid);
+      allow create, update: if isOwner(uid) && isSupportedDocument();
     }
 
     match /users/{uid}/profile/{fileName} {
-      allow read, write: if isOwner(uid);
+      allow read, delete: if isOwner(uid);
+      allow create, update: if isOwner(uid) && isSupportedProfilePhoto();
     }
   }
 }

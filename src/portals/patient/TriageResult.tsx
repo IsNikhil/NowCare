@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useLocation, useNavigate, Link } from 'react-router-dom'
-import { Siren, Clock, Video, Leaf, AlertTriangle, ArrowRight } from 'lucide-react'
-import type { TriageResult as TriageResultType, CareType } from '../../types'
+import { Siren, Clock, Video, Leaf, AlertTriangle, ArrowRight, Scan, CalendarDays } from 'lucide-react'
+import type { TriageResult as TriageResultType, CareCategory } from '../../types'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
@@ -20,29 +20,43 @@ type CareConfig = {
   bgClass: string
 }
 
-const careConfig: Record<CareType, CareConfig> = {
-  er: {
+const careConfig: Record<CareCategory, CareConfig> = {
+  ER_NOW: {
     icon: <Siren size={40} strokeWidth={1.75} />,
     headline: 'Go to the ER now',
     colorClass: 'text-rose-500',
     badgeVariant: 'danger',
     bgClass: 'bg-rose-50',
   },
-  urgent: {
+  URGENT_TODAY: {
     icon: <Clock size={40} strokeWidth={1.75} />,
     headline: 'See a doctor today',
     colorClass: 'text-amber-500',
     badgeVariant: 'warning',
     bgClass: 'bg-amber-50',
   },
-  telehealth: {
+  SCAN_NEEDED: {
+    icon: <Scan size={40} strokeWidth={1.75} />,
+    headline: 'Get a scan',
+    colorClass: 'text-violet-500',
+    badgeVariant: 'teal',
+    bgClass: 'bg-violet-50',
+  },
+  TELEHEALTH: {
     icon: <Video size={40} strokeWidth={1.75} />,
     headline: 'Telehealth visit',
     colorClass: 'text-teal-500',
     badgeVariant: 'teal',
     bgClass: 'bg-teal-50',
   },
-  wait: {
+  SCHEDULE_DOCTOR: {
+    icon: <CalendarDays size={40} strokeWidth={1.75} />,
+    headline: 'Schedule with a doctor',
+    colorClass: 'text-teal-500',
+    badgeVariant: 'teal',
+    bgClass: 'bg-teal-50',
+  },
+  SELF_CARE: {
     icon: <Leaf size={40} strokeWidth={1.75} />,
     headline: 'Safe to wait and monitor',
     colorClass: 'text-emerald-500',
@@ -64,17 +78,17 @@ export default function TriageResultPage() {
 
   useEffect(() => {
     if (!state?.triageResult) {
-      navigate('/patient/symptoms', { replace: true })
+      navigate('/patient/assess', { replace: true })
     }
   }, [state, navigate])
 
   if (!state?.triageResult) return null
 
   const { triageResult, journeyId } = state
-  const config = careConfig[triageResult.care_type]
+  const config = careConfig[triageResult.care_category]
 
   function goToProviders() {
-    navigate(`/patient/providers?type=${triageResult.care_type}`, {
+    navigate(`/patient/providers?category=${triageResult.care_category}&specialty=${triageResult.recommended_specialty ?? ''}`, {
       state: { journeyId },
     })
   }
@@ -96,7 +110,7 @@ export default function TriageResultPage() {
           </div>
         </div>
 
-        <p className="text-slate-600 leading-relaxed mb-6">{triageResult.reasoning}</p>
+        <p className="text-slate-600 leading-relaxed mb-6">{triageResult.short_reasoning}</p>
 
         {triageResult.red_flags.length > 0 && (
           <div className="glass-1 rounded-2xl p-4 mb-6">

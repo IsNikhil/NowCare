@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { Home, Stethoscope, History, LayoutDashboard, Calendar, HardDrive, CheckSquare, FileText } from 'lucide-react'
+import { Home, Stethoscope, History, LayoutDashboard, Calendar, HardDrive, CheckSquare, FileText, Activity } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 
 type MobileNavItem = {
@@ -13,6 +13,7 @@ const mobileNavByRole: Record<string, MobileNavItem[]> = {
   patient: [
     { to: '/patient', label: 'Home', icon: <Home size={22} strokeWidth={1.75} />, end: true },
     { to: '/patient/assess', label: 'Assess', icon: <Stethoscope size={22} strokeWidth={1.75} /> },
+    { to: '/patient/providers', label: 'Care', icon: <Activity size={22} strokeWidth={1.75} /> },
     { to: '/patient/documents', label: 'Docs', icon: <FileText size={22} strokeWidth={1.75} /> },
     { to: '/patient/history', label: 'History', icon: <History size={22} strokeWidth={1.75} /> },
   ],
@@ -46,7 +47,7 @@ export default function BottomNav() {
         WebkitBackdropFilter: 'blur(20px)',
       }}
     >
-      <div className="flex items-center justify-around h-[60px] px-2 pb-safe">
+      <div className="flex items-center justify-around h-[64px] px-1 pb-safe">
         {items.map((item) => (
           <NavLink
             key={item.to}
@@ -54,7 +55,7 @@ export default function BottomNav() {
             end={item.end}
             className={({ isActive }) =>
               [
-                'flex flex-col items-center gap-0.5 py-1.5 px-3 rounded-xl transition-all duration-150 min-w-[44px]',
+                'flex flex-1 flex-col items-center gap-0.5 py-1.5 px-1 rounded-xl transition-all duration-150 min-w-0',
                 isActive
                   ? 'text-[var(--accent-teal)]'
                   : 'text-[var(--text-muted)]',
@@ -62,7 +63,7 @@ export default function BottomNav() {
             }
           >
             {item.icon}
-            <span className="text-[10px] font-semibold">{item.label}</span>
+            <span className="text-[9px] sm:text-[10px] font-semibold leading-none">{item.label}</span>
           </NavLink>
         ))}
       </div>

@@ -1,10 +1,11 @@
 import { useRef, useState, useMemo } from 'react'
-import { useSearchParams, useNavigate } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { where, orderBy, doc, setDoc, updateDoc, addDoc, collection, serverTimestamp, Timestamp } from 'firebase/firestore'
 import { motion } from 'framer-motion'
 import {
-  MapPin, Phone, Clock, Star, Calendar, Filter,
-  Building2, Stethoscope, ChevronDown, Mail, LocateFixed, Loader2,
+  MapPin, Phone, Clock, Calendar, Filter,
+  Building2, Stethoscope, Mail, LocateFixed, Loader2,
+  Navigation, CalendarPlus, ExternalLink, MessageSquareMore,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { db } from '../../services/firebase'
@@ -24,7 +25,8 @@ import { INSURANCE_CARRIERS } from '../../lib/insuranceCarriers'
 import { doctorAvatars } from '../../lib/imageAssets'
 import { formatDate, formatTime } from '../../lib/format'
 import { fadeRise, stagger } from '../../lib/motion'
-import type { Patient, Hospital, Doctor, DoctorSlot, WithId } from '../../types'
+import { haversine } from '../../lib/haversine'
+import type { Patient, Hospital, Doctor, DoctorSlot, MRISlot, WithId, CareCategory } from '../../types'
 
 // Normalize specialty display name → SPECIALTIES id (handles old seed data stored as display names)
 function toSpecialtyId(raw: string): string {
@@ -47,6 +49,75 @@ function toInsuranceId(raw: string): string {
   return INSURANCE_ALIASES[raw] ?? raw
 }
 
+type ProviderFilter = '' | `specialty:${string}` | `category:${CareCategory}`
+
+const DISTANCE_OPTIONS = [
+  { value: 'nearest', label: 'Nearest first' },
+  { value: '8', label: 'Within 5 mi' },
+  { value: '16', label: 'Within 10 mi' },
+  { value: '40', label: 'Within 25 mi' },
+  { value: '80', label: 'Within 50 mi' },
+]
+
+const CATEGORY_SPECIALTIES: Record<CareCategory, string[]> = {
+  ER_NOW: ['emergency_medicine'],
+  URGENT_TODAY: ['family_medicine', 'internal_medicine', 'emergency_medicine'],
+  SCAN_NEEDED: ['radiology', 'orthopedics'],
+  TELEHEALTH: ['family_medicine', 'internal_medicine', 'psychiatry', 'dermatology'],
+  SCHEDULE_DOCTOR: [],
+  SELF_CARE: ['family_medicine', 'internal_medicine'],
+}
+
+const CATEGORY_SERVICE_TERMS: Record<CareCategory, string[]> = {
+  ER_NOW: ['emergency', 'trauma', 'er'],
+  URGENT_TODAY: ['emergency', 'urgent', 'walk-in'],
+  SCAN_NEEDED: ['mri', 'ct', 'x-ray', 'xray', 'ultrasound', 'scan', 'imaging', 'radiology'],
+  TELEHEALTH: [],
+  SCHEDULE_DOCTOR: [],
+  SELF_CARE: [],
+}
+
+function initialProviderFilter(specialtyParam: string, categoryParam: string): ProviderFilter {
+  if (specialtyParam) return `specialty:${specialtyParam}`
+  if (categoryParam && categoryParam in CARE_CATEGORY_CONFIG) return `category:${categoryParam as CareCategory}`
+  return ''
+}
+
+function getDistanceKm(item: { lat?: number; lng?: number }, originLat?: number, originLng?: number) {
+  if (!originLat || !originLng || !item.lat || !item.lng) return null
+  return haversine(originLat, originLng, item.lat, item.lng)
+}
+
+function hospitalMatchesCategory(hospital: Hospital, category: CareCategory) {
+  const terms = CATEGORY_SERVICE_TERMS[category]
+  if (terms.length === 0) return true
+  const haystack = [
+    hospital.cms_data?.hospital_type,
+    hospital.cms_data?.emergency_services,
+    hospital.type,
+    ...(hospital.services ?? []),
+  ].filter(Boolean).join(' ').toLowerCase()
+  return terms.some((term) => haystack.includes(term))
+}
+
+function hospitalMatchesSpecialty(hospital: Hospital, specialty: string) {
+  if (!specialty) return true
+  const specLabel = getSpecialtyLabel(specialty).toLowerCase()
+  const specId = specialty.replace(/_/g, ' ').toLowerCase()
+  const haystack = [
+    hospital.cms_data?.hospital_type,
+    hospital.type,
+    ...(hospital.services ?? []),
+  ].filter(Boolean).join(' ').toLowerCase()
+  return haystack.includes(specLabel) || haystack.includes(specId)
+}
+
+function acceptsInsurance(provider: { acceptedInsurance?: string[] }, selectedInsurance: string, strict = true) {
+  if (!selectedInsurance) return true
+  if (!provider.acceptedInsurance || provider.acceptedInsurance.length === 0) return !strict
+  return provider.acceptedInsurance.some((ins) => toInsuranceId(ins) === selectedInsurance)
+}
+
 function ERStatusBadge({ status }: { status?: string }) {
   if (!status) return null
   const configs: Record<string, { label: string; color: 'success' | 'warning' | 'danger' | 'slate' }> = {
@@ -58,6 +129,37 @@ function ERStatusBadge({ status }: { status?: string }) {
   const cfg = configs[status]
   if (!cfg) return null
   return <Badge variant={cfg.color} dot>{cfg.label}</Badge>
+}
+
+function hospitalName(hospital: Hospital) {
+  return hospital.cms_data?.facility_name ?? hospital.name
+}
+
+function hospitalAddress(hospital: Hospital) {
+  return hospital.cms_data?.address
+    ? `${hospital.cms_data.address}, ${hospital.cms_data.city ?? ''}, ${hospital.cms_data.state ?? ''}`
+    : hospital.address ?? ''
+}
+
+function hospitalPhone(hospital: Hospital) {
+  return hospital.cms_data?.phone_number ?? hospital.phone ?? ''
+}
+
+function hospitalEmail(hospital: Hospital) {
+  return hospital.email ?? ''
+}
+
+function directionsUrl(lat?: number, lng?: number, address?: string) {
+  const destination = lat && lng ? `${lat},${lng}` : address ?? ''
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`
+}
+
+function contactSubject(name: string) {
+  return encodeURIComponent(`NowCare appointment request for ${name}`)
+}
+
+function contactBody(name: string) {
+  return encodeURIComponent(`Hello ${name},\n\nI found you through NowCare and would like to ask about appointment availability.\n\nThank you.`)
 }
 
 function BookingSheet({ doctor, patientId, open, onClose }: {
@@ -122,16 +224,45 @@ function BookingSheet({ doctor, patientId, open, onClose }: {
 
 // ─── Hospital card ────────────────────────────────────────────────────────────
 
-function HospitalCard({ h, onFocusMap }: { h: WithId<Hospital>; onFocusMap: () => void }) {
-  const name = h.cms_data?.facility_name ?? h.name
-  const address = h.cms_data?.address
-    ? `${h.cms_data.address}, ${h.cms_data.city ?? ''}, ${h.cms_data.state ?? ''}`
-    : h.address ?? ''
-  const phone = h.cms_data?.phone_number ?? h.phone ?? ''
-  const email = h.email ?? ''
+function HospitalCard({
+  h,
+  selected,
+  onFocusMap,
+  onOpenActions,
+}: {
+  h: WithId<Hospital>
+  selected: boolean
+  onFocusMap: () => void
+  onOpenActions: () => void
+}) {
+  const name = hospitalName(h)
+  const address = hospitalAddress(h)
+  const phone = hospitalPhone(h)
+  const email = hospitalEmail(h)
+  const hasMapLocation = Boolean(h.lat && h.lng)
 
   return (
-    <GlassCard variant="interactive" className="p-5">
+    <GlassCard
+      variant="interactive"
+      className="relative p-5 cursor-pointer transition-all"
+      onClick={hasMapLocation ? onFocusMap : undefined}
+      role={hasMapLocation ? 'button' : undefined}
+      tabIndex={hasMapLocation ? 0 : undefined}
+      onKeyDown={(e) => {
+        if (!hasMapLocation) return
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onFocusMap()
+        }
+      }}
+    >
+      <div
+        className="pointer-events-none absolute inset-0 rounded-[inherit] transition-opacity"
+        style={{
+          opacity: selected ? 1 : 0,
+          boxShadow: 'inset 0 0 0 1px var(--accent-teal), 0 0 32px -18px var(--accent-teal)',
+        }}
+      />
       <div className="flex items-start gap-3 mb-3">
         <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
           style={{ background: 'var(--accent-teal-glow)', color: 'var(--accent-teal)' }}>
@@ -151,6 +282,7 @@ function HospitalCard({ h, onFocusMap }: { h: WithId<Hospital>; onFocusMap: () =
           )}
           {phone && (
             <a href={`tel:${phone}`} className="text-xs flex items-center gap-1 mt-0.5 hover:underline"
+              onClick={(e) => e.stopPropagation()}
               style={{ color: 'var(--accent-teal)' }}>
               <Phone size={11} strokeWidth={1.75} />
               {phone}
@@ -158,6 +290,7 @@ function HospitalCard({ h, onFocusMap }: { h: WithId<Hospital>; onFocusMap: () =
           )}
           {email && (
             <a href={`mailto:${email}`} className="text-xs flex items-center gap-1 mt-0.5 hover:underline"
+              onClick={(e) => e.stopPropagation()}
               style={{ color: 'var(--accent-teal)' }}>
               <Mail size={11} strokeWidth={1.75} />
               {email}
@@ -190,25 +323,185 @@ function HospitalCard({ h, onFocusMap }: { h: WithId<Hospital>; onFocusMap: () =
 
       <div className="flex gap-2 mt-2 flex-wrap">
         {h.lat && h.lng && (
-          <Button variant="secondary" size="sm" onClick={onFocusMap}>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation()
+              onFocusMap()
+            }}
+          >
             <MapPin size={13} strokeWidth={1.75} />
             Show on map
           </Button>
         )}
+        {h.lat && h.lng && (
+          <Button
+            variant="secondary"
+            size="sm"
+            as="a"
+            href={directionsUrl(h.lat, h.lng, address)}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Navigation size={13} strokeWidth={1.75} />
+            Directions
+          </Button>
+        )}
         {phone && (
-          <Button variant="secondary" size="sm" as="a" href={`tel:${phone}`}>
+          <Button variant="secondary" size="sm" as="a" href={`tel:${phone}`} onClick={(e) => e.stopPropagation()}>
             <Phone size={13} strokeWidth={1.75} />
             Call
           </Button>
         )}
         {email && (
-          <Button variant="secondary" size="sm" as="a" href={`mailto:${email}`}>
+          <Button variant="secondary" size="sm" as="a" href={`mailto:${email}`} onClick={(e) => e.stopPropagation()}>
             <Mail size={13} strokeWidth={1.75} />
             Email
           </Button>
         )}
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation()
+            onOpenActions()
+          }}
+        >
+          <CalendarPlus size={13} strokeWidth={1.75} />
+          Appointments
+        </Button>
       </div>
     </GlassCard>
+  )
+}
+
+function HospitalActionSheet({ hospital, patientId, open, onClose }: {
+  hospital: WithId<Hospital>
+  patientId: string
+  open: boolean
+  onClose: () => void
+}) {
+  const name = hospitalName(hospital)
+  const address = hospitalAddress(hospital)
+  const phone = hospitalPhone(hospital)
+  const email = hospitalEmail(hospital)
+  const now = useMemo(() => new Date(), [])
+  const [bookingSlotId, setBookingSlotId] = useState<string | null>(null)
+
+  const { data: scanSlots, loading } = useFirestoreCollection<MRISlot>(
+    open ? 'mri_slots' : '',
+    open ? [where('hospitalId', '==', hospital.id), where('available', '==', true),
+      where('datetime', '>=', Timestamp.fromDate(now)), orderBy('datetime', 'asc')] : []
+  )
+
+  async function handleBookScan(slot: WithId<MRISlot>) {
+    setBookingSlotId(slot.id)
+    try {
+      await updateDoc(doc(db, 'mri_slots', slot.id), {
+        available: false,
+        bookedByPatientId: patientId,
+        bookedAt: serverTimestamp(),
+      })
+      await addDoc(collection(db, 'care_journeys'), {
+        patientId,
+        selected_provider_id: hospital.id,
+        provider_type: 'hospital',
+        appointment_datetime: slot.datetime,
+        createdAt: serverTimestamp(),
+      })
+      toast.success(`Booked ${slot.type} for ${formatDate(slot.datetime)} at ${formatTime(slot.datetime)}`)
+      onClose()
+    } catch {
+      toast.error('Could not book this slot. Please call the hospital or try again.')
+    } finally {
+      setBookingSlotId(null)
+    }
+  }
+
+  return (
+    <BottomSheet open={open} onClose={onClose} title={name}>
+      <div className="space-y-4">
+        <div className="rounded-2xl border p-4" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-tint)' }}>
+          {address && (
+            <p className="flex items-start gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+              <MapPin size={15} strokeWidth={1.75} className="mt-0.5 shrink-0" />
+              {address}
+            </p>
+          )}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button size="sm" as="a" href={directionsUrl(hospital.lat, hospital.lng, address)} target="_blank" rel="noopener noreferrer">
+              <Navigation size={14} strokeWidth={1.75} />
+              Directions
+            </Button>
+            {phone && (
+              <Button size="sm" variant="secondary" as="a" href={`tel:${phone}`}>
+                <Phone size={14} strokeWidth={1.75} />
+                Call
+              </Button>
+            )}
+            {email && (
+              <Button
+                size="sm"
+                variant="secondary"
+                as="a"
+                href={`mailto:${email}?subject=${contactSubject(name)}&body=${contactBody(name)}`}
+              >
+                <Mail size={14} strokeWidth={1.75} />
+                Email
+              </Button>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <div className="mb-2 flex items-center gap-2">
+            <CalendarPlus size={15} strokeWidth={1.75} style={{ color: 'var(--accent-teal)' }} />
+            <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Available scan appointments</h3>
+          </div>
+          {loading && <div className="py-6 text-center text-sm" style={{ color: 'var(--text-muted)' }}>Loading slots...</div>}
+          {!loading && scanSlots.length === 0 && (
+            <div className="rounded-2xl border p-4 text-sm" style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-secondary)' }}>
+              No open scan slots are published right now. Call or email the hospital to request availability.
+            </div>
+          )}
+          <div className="space-y-2">
+            {scanSlots.slice(0, 8).map((slot) => (
+              <div key={slot.id} className="flex items-center justify-between gap-3 rounded-xl border p-3"
+                style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-tint)' }}>
+                <div>
+                  <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{slot.type}</p>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    {formatDate(slot.datetime)} at {formatTime(slot.datetime)}
+                  </p>
+                </div>
+                <Button size="sm" loading={bookingSlotId === slot.id} disabled={bookingSlotId !== null} onClick={() => handleBookScan(slot)}>
+                  Book
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <Button variant="secondary" as="a" href={`/patient/assess?provider=${hospital.id}`}>
+            <MessageSquareMore size={14} strokeWidth={1.75} />
+            Start assessment
+          </Button>
+          {email && (
+            <Button
+              variant="secondary"
+              as="a"
+              href={`mailto:${email}?subject=${contactSubject(name)}&body=${contactBody(name)}`}
+            >
+              <ExternalLink size={14} strokeWidth={1.75} />
+              Request appointment
+            </Button>
+          )}
+        </div>
+      </div>
+    </BottomSheet>
   )
 }
 
@@ -280,19 +573,20 @@ function DoctorCard({ d, onBook }: { d: WithId<Doctor>; onBook: () => void }) {
 export default function ProviderResultsPage() {
   const { user } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
-  const navigate = useNavigate()
 
   const categoryParam = searchParams.get('category') ?? ''
   const specialtyParam = searchParams.get('specialty') ?? ''
 
-  const [selectedSpecialty, setSelectedSpecialty] = useState(specialtyParam)
+  const [selectedProviderFilter, setSelectedProviderFilter] = useState<ProviderFilter>(() => initialProviderFilter(specialtyParam, categoryParam))
   const [selectedInsurance, setSelectedInsurance] = useState('')
+  const [distanceFilter, setDistanceFilter] = useState('nearest')
   const [activeTab, setActiveTab] = useState<'list' | 'map'>('list')
-  const [showInsurancePicker, setShowInsurancePicker] = useState(false)
   const [bookingDoctor, setBookingDoctor] = useState<WithId<Doctor> | null>(null)
+  const [actionHospital, setActionHospital] = useState<WithId<Hospital> | null>(null)
   const [locating, setLocating] = useState(false)
   const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number } | null>(null)
   const [focusedMarkerId, setFocusedMarkerId] = useState<string | null>(null)
+  const [focusVersion, setFocusVersion] = useState(0)
   const hospitalsSectionRef = useRef<HTMLDivElement | null>(null)
   const doctorsSectionRef = useRef<HTMLDivElement | null>(null)
 
@@ -302,7 +596,37 @@ export default function ProviderResultsPage() {
 
   const loading = hospLoading || docLoading
 
-  const hospitals = allHospitals
+  const selectedSpecialty = selectedProviderFilter.startsWith('specialty:') ? selectedProviderFilter.slice('specialty:'.length) : ''
+  const selectedCategory = selectedProviderFilter.startsWith('category:') ? selectedProviderFilter.slice('category:'.length) as CareCategory : null
+  const selectedDistanceKm = distanceFilter === 'nearest' ? null : Number(distanceFilter)
+  const effectiveLat = mapCenter?.lat ?? patient?.lat
+  const effectiveLng = mapCenter?.lng ?? patient?.lng
+
+  const sortAndLimitByDistance = <T extends { lat?: number; lng?: number }>(items: WithId<T>[]) => {
+    const withDistance = items
+      .map((item) => ({ item, distance: getDistanceKm(item, effectiveLat, effectiveLng) }))
+      .filter(({ distance }) => selectedDistanceKm == null || !effectiveLat || !effectiveLng || (distance != null && distance <= selectedDistanceKm))
+
+    if (effectiveLat && effectiveLng) {
+      withDistance.sort((a, b) => (a.distance ?? Number.POSITIVE_INFINITY) - (b.distance ?? Number.POSITIVE_INFINITY))
+    }
+
+    return withDistance.map(({ item }) => item)
+  }
+
+  const hospitals = useMemo(() => {
+    let list = allHospitals
+    if (selectedCategory) {
+      list = list.filter((h) => hospitalMatchesCategory(h, selectedCategory))
+    }
+    if (selectedSpecialty) {
+      list = list.filter((h) => hospitalMatchesSpecialty(h, selectedSpecialty))
+    }
+    if (selectedInsurance) {
+      list = list.filter((h) => acceptsInsurance(h as WithId<Hospital> & { acceptedInsurance?: string[] }, selectedInsurance, false))
+    }
+    return sortAndLimitByDistance(list)
+  }, [allHospitals, selectedCategory, selectedSpecialty, selectedInsurance, selectedDistanceKm, effectiveLat, effectiveLng])
 
   // Filter doctors — normalize specialty + insurance IDs from Firestore before comparing
   const filteredDoctors = useMemo(() => {
@@ -310,13 +634,17 @@ export default function ProviderResultsPage() {
     if (selectedSpecialty) {
       list = list.filter((d) => toSpecialtyId(d.specialty ?? '') === selectedSpecialty)
     }
-    if (selectedInsurance) {
-      list = list.filter((d) =>
-        d.acceptedInsurance?.some((ins) => toInsuranceId(ins) === selectedInsurance) ?? false
-      )
+    if (selectedCategory) {
+      const categorySpecialties = CATEGORY_SPECIALTIES[selectedCategory]
+      if (categorySpecialties.length > 0) {
+        list = list.filter((d) => categorySpecialties.includes(toSpecialtyId(d.specialty ?? '')))
+      }
     }
-    return list
-  }, [allDoctors, selectedSpecialty, selectedInsurance])
+    if (selectedInsurance) {
+      list = list.filter((d) => acceptsInsurance(d, selectedInsurance))
+    }
+    return sortAndLimitByDistance(list)
+  }, [allDoctors, selectedSpecialty, selectedCategory, selectedInsurance, selectedDistanceKm, effectiveLat, effectiveLng])
 
   async function handleLocate() {
     if (!user) { toast.error('Sign in to save your location.'); return }
@@ -343,11 +671,8 @@ export default function ProviderResultsPage() {
     )
   }
 
-  const effectiveLat = mapCenter?.lat ?? patient?.lat
-  const effectiveLng = mapCenter?.lng ?? patient?.lng
-
   // For ER/SCAN categories, show hospitals first; otherwise show doctors first then hospitals
-  const categoryConfig = categoryParam ? CARE_CATEGORY_CONFIG[categoryParam as keyof typeof CARE_CATEGORY_CONFIG] : null
+  const categoryConfig = selectedCategory ? CARE_CATEGORY_CONFIG[selectedCategory] : null
   const title = categoryConfig ? categoryConfig.headline : selectedSpecialty ? getSpecialtyLabel(selectedSpecialty) : 'Find Providers'
 
   const totalCount = filteredDoctors.length + hospitals.length
@@ -384,12 +709,13 @@ export default function ProviderResultsPage() {
       id: h.id,
       lat: h.lat!,
       lng: h.lng!,
-      label: h.cms_data?.facility_name ?? h.name,
+      label: hospitalName(h),
       type: 'verified' as const,
-      address: h.cms_data?.address
-        ? `${h.cms_data.address}, ${h.cms_data.city ?? ''}, ${h.cms_data.state ?? ''}`
-        : h.address,
-      phone: h.cms_data?.phone_number ?? h.phone,
+      kind: 'hospital' as const,
+      address: hospitalAddress(h),
+      phone: hospitalPhone(h),
+      email: hospitalEmail(h),
+      subtitle: h.er_status ? `${h.er_status[0].toUpperCase()}${h.er_status.slice(1)} ER status` : h.cms_data?.hospital_type,
     })),
     ...filteredDoctors.filter((d) => d.lat && d.lng).map((d) => ({
       id: d.id,
@@ -397,14 +723,18 @@ export default function ProviderResultsPage() {
       lng: d.lng!,
       label: d.npi_data?.name ?? d.name ?? 'Provider',
       type: 'verified' as const,
+      kind: 'doctor' as const,
+      subtitle: d.specialty ? getSpecialtyLabel(toSpecialtyId(d.specialty)) : undefined,
     })),
   ]
 
-  function setSpecialty(s: string) {
-    setSelectedSpecialty(s)
+  function setProviderFilter(value: ProviderFilter) {
+    setSelectedProviderFilter(value)
     const params = new URLSearchParams(searchParams)
-    if (s) params.set('specialty', s)
-    else params.delete('specialty')
+    params.delete('specialty')
+    params.delete('category')
+    if (value.startsWith('specialty:')) params.set('specialty', value.slice('specialty:'.length))
+    if (value.startsWith('category:')) params.set('category', value.slice('category:'.length))
     setSearchParams(params, { replace: true })
   }
 
@@ -422,15 +752,36 @@ export default function ProviderResultsPage() {
       return
     }
     setFocusedMarkerId(hospital.id)
+    setFocusVersion((v) => v + 1)
     setMapCenter({ lat: hospital.lat, lng: hospital.lng })
     setActiveTab('map')
   }
 
-  const topSpecialties = SPECIALTIES.slice(0, 10)
+  function handleMarkerSelect(marker: MapMarker) {
+    setFocusedMarkerId(marker.id)
+    if (marker.kind === 'hospital') {
+      const hospital = hospitals.find((h) => h.id === marker.id)
+      if (hospital) setMapCenter({ lat: hospital.lat!, lng: hospital.lng! })
+    }
+  }
+
+  function openHospitalActionsByMarker(marker: MapMarker) {
+    const hospital = hospitals.find((h) => h.id === marker.id)
+    if (hospital) setActionHospital(hospital)
+  }
+
+  const selectedHospital = focusedMarkerId ? hospitals.find((h) => h.id === focusedMarkerId) : null
+
   const insuranceCarrier = INSURANCE_CARRIERS.find((c) => c.id === selectedInsurance)
+  const selectedDistanceLabel = DISTANCE_OPTIONS.find((option) => option.value === distanceFilter)?.label ?? 'Nearest first'
+  const filterLabel = selectedCategory
+    ? CARE_CATEGORY_CONFIG[selectedCategory].label
+    : selectedSpecialty
+      ? getSpecialtyLabel(selectedSpecialty)
+      : 'All specialties/categories'
 
   return (
-    <motion.div variants={stagger} initial="initial" animate="animate" className="max-w-6xl mx-auto">
+    <motion.div variants={stagger} initial="initial" animate="animate" className="mx-auto max-w-7xl overflow-hidden">
       {/* Header */}
       <motion.div variants={fadeRise} className="mb-5">
         <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -460,7 +811,7 @@ export default function ProviderResultsPage() {
             </div>
           </div>
           {categoryConfig && (
-            <Badge variant={categoryParam === 'ER_NOW' ? 'danger' : categoryParam === 'URGENT_TODAY' ? 'warning' : 'teal'}>
+            <Badge variant={selectedCategory === 'ER_NOW' ? 'danger' : selectedCategory === 'URGENT_TODAY' ? 'warning' : 'teal'}>
               {categoryConfig.label}
             </Badge>
           )}
@@ -511,87 +862,100 @@ export default function ProviderResultsPage() {
       </motion.div>
 
       {/* Filters row */}
-      <motion.div variants={fadeRise} className="mb-4 space-y-3">
-        {/* Specialty chips */}
-        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-          <button onClick={() => setSpecialty('')}
-            className="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all"
-            style={{
-              background: !selectedSpecialty ? 'var(--accent-teal)' : 'var(--bg-glass)',
-              color: !selectedSpecialty ? 'white' : 'var(--text-secondary)',
-              borderColor: !selectedSpecialty ? 'var(--accent-teal)' : 'var(--border-subtle)',
-            }}>
-            All specialties
-          </button>
-          {topSpecialties.map((s) => (
-            <button key={s.id} onClick={() => setSpecialty(s.id)}
-              className="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all"
-              style={{
-                background: selectedSpecialty === s.id ? 'var(--accent-teal)' : 'var(--bg-glass)',
-                color: selectedSpecialty === s.id ? 'white' : 'var(--text-secondary)',
-                borderColor: selectedSpecialty === s.id ? 'var(--accent-teal)' : 'var(--border-subtle)',
-              }}>
-              {s.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Insurance filter */}
-        <div className="relative flex items-center gap-2">
-          <button
-            onClick={() => setShowInsurancePicker((v) => !v)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all"
-            style={{
-              background: selectedInsurance ? 'hsla(265,70%,65%,0.12)' : 'var(--bg-glass)',
-              color: selectedInsurance ? 'var(--accent-violet)' : 'var(--text-secondary)',
-              borderColor: selectedInsurance ? 'var(--accent-violet)' : 'var(--border-subtle)',
-            }}
-          >
-            <Filter size={12} strokeWidth={2} />
-            {insuranceCarrier ? insuranceCarrier.display_name : 'Insurance'}
-            <ChevronDown size={12} strokeWidth={2} />
-          </button>
-          {selectedInsurance && (
-            <button
-              onClick={() => setSelectedInsurance('')}
-              className="text-xs hover:underline"
-              style={{ color: 'var(--text-muted)' }}
-            >
-              Clear
-            </button>
-          )}
-
-          {showInsurancePicker && (
-            <div
-              className="absolute top-9 left-0 z-30 rounded-2xl overflow-hidden"
-              style={{
-                background: 'var(--bg-elevated)',
-                border: '1px solid var(--border-subtle)',
-                boxShadow: 'var(--shadow-card)',
-                width: 280,
-                maxHeight: 320,
-                overflowY: 'auto',
-              }}
-            >
-              {[
-                { id: '', display_name: 'All insurance', category: 'national' as const },
-                ...INSURANCE_CARRIERS,
-              ].map((c) => (
-                <button
-                  key={c.id}
-                  onClick={() => { setSelectedInsurance(c.id); setShowInsurancePicker(false) }}
-                  className="w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-[var(--surface-tint)]"
-                  style={{
-                    color: selectedInsurance === c.id ? 'var(--accent-teal)' : 'var(--text-primary)',
-                    fontWeight: selectedInsurance === c.id ? 600 : 400,
-                  }}
-                >
-                  {c.display_name}
-                </button>
-              ))}
+      <motion.div variants={fadeRise} className="mb-4">
+        <GlassCard className="p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Filter size={15} strokeWidth={1.75} style={{ color: 'var(--accent-teal)' }} />
+              <h2 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Sort by</h2>
             </div>
-          )}
-        </div>
+            {(selectedProviderFilter || selectedInsurance || distanceFilter !== 'nearest') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setProviderFilter('')
+                  setSelectedInsurance('')
+                  setDistanceFilter('nearest')
+                }}
+                className="text-xs font-semibold hover:underline"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                Reset filters
+              </button>
+            )}
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-3">
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Specialties/categories</span>
+              <select
+                value={selectedProviderFilter}
+                onChange={(e) => setProviderFilter(e.target.value as ProviderFilter)}
+                className="h-11 w-full rounded-xl border px-3 text-sm outline-none transition-all"
+                style={{ background: 'var(--bg-glass)', borderColor: 'var(--border-subtle)', color: 'var(--text-primary)' }}
+              >
+                <option value="">All specialties/categories</option>
+                <optgroup label="Care categories">
+                  {(Object.entries(CARE_CATEGORY_CONFIG) as [CareCategory, typeof CARE_CATEGORY_CONFIG[CareCategory]][]).map(([id, cfg]) => (
+                    <option key={id} value={`category:${id}`}>{cfg.label}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="Doctor specialties">
+                  {SPECIALTIES.map((specialty) => (
+                    <option key={specialty.id} value={`specialty:${specialty.id}`}>{specialty.label}</option>
+                  ))}
+                </optgroup>
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Insurance</span>
+              <select
+                value={selectedInsurance}
+                onChange={(e) => setSelectedInsurance(e.target.value)}
+                className="h-11 w-full rounded-xl border px-3 text-sm outline-none transition-all"
+                style={{ background: 'var(--bg-glass)', borderColor: 'var(--border-subtle)', color: 'var(--text-primary)' }}
+              >
+                <option value="">All insurance</option>
+                {INSURANCE_CARRIERS.map((carrier) => (
+                  <option key={carrier.id} value={carrier.id}>{carrier.display_name}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Nearest distance</span>
+              <select
+                value={distanceFilter}
+                onChange={(e) => setDistanceFilter(e.target.value)}
+                className="h-11 w-full rounded-xl border px-3 text-sm outline-none transition-all"
+                style={{ background: 'var(--bg-glass)', borderColor: 'var(--border-subtle)', color: 'var(--text-primary)' }}
+              >
+                {DISTANCE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Badge variant="teal">{filterLabel}</Badge>
+            <Badge variant={selectedInsurance ? 'violet' : 'default'}>{insuranceCarrier?.display_name ?? 'All insurance'}</Badge>
+            <Badge variant={distanceFilter === 'nearest' ? 'default' : 'info'}>{selectedDistanceLabel}</Badge>
+            {!effectiveLat && (
+              <button
+                type="button"
+                onClick={handleLocate}
+                disabled={locating}
+                className="inline-flex items-center gap-1 text-xs font-semibold hover:underline"
+                style={{ color: 'var(--accent-teal)' }}
+              >
+                {locating ? <Loader2 size={11} className="animate-spin" /> : <LocateFixed size={11} />}
+                Set location for distance
+              </button>
+            )}
+          </div>
+        </GlassCard>
       </motion.div>
 
       {/* Mobile tabs */}
@@ -609,22 +973,21 @@ export default function ProviderResultsPage() {
         ))}
       </div>
 
-      <div className="flex gap-6">
+      <div className="flex flex-col gap-6 lg:flex-row">
         {/* Provider list */}
-        <div className={`flex-1 min-w-0 space-y-6 ${activeTab === 'map' ? 'hidden md:block' : ''}`}
-          onClick={() => showInsurancePicker && setShowInsurancePicker(false)}>
+        <div className={`flex-1 min-w-0 space-y-6 ${activeTab === 'map' ? 'hidden md:block' : ''}`}>
 
           {loading && <SkeletonList count={5} />}
 
           {!loading && totalCount === 0 && (
-            <GlassCard className="p-10 text-center">
+            <GlassCard className="p-6 sm:p-10 text-center">
               <div className="w-12 h-12 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: 'var(--surface-tint)' }}>
                 <Filter size={24} strokeWidth={1.75} style={{ color: 'var(--text-muted)' }} />
               </div>
               <p className="font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>No providers found</p>
               <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Try a different specialty or insurance filter.</p>
               <div className="flex gap-2 justify-center mt-4">
-                <Button size="sm" variant="secondary" onClick={() => setSpecialty('')}>Clear specialty</Button>
+                <Button size="sm" variant="secondary" onClick={() => setProviderFilter('')}>Clear category</Button>
                 {selectedInsurance && (
                   <Button size="sm" variant="secondary" onClick={() => setSelectedInsurance('')}>Clear insurance</Button>
                 )}
@@ -664,7 +1027,12 @@ export default function ProviderResultsPage() {
                     <motion.div variants={stagger} className="space-y-3">
                       {hosps.map((h, i) => (
                         <motion.div key={h.id} variants={fadeRise} style={{ transitionDelay: `${i * 30}ms` }}>
-                          <HospitalCard h={h} onFocusMap={() => focusHospitalOnMap(h)} />
+                          <HospitalCard
+                            h={h}
+                            selected={focusedMarkerId === h.id}
+                            onFocusMap={() => focusHospitalOnMap(h)}
+                            onOpenActions={() => setActionHospital(h)}
+                          />
                         </motion.div>
                       ))}
                     </motion.div>
@@ -698,7 +1066,7 @@ export default function ProviderResultsPage() {
                   <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
                     No doctors match your filters.{' '}
                     <button className="font-semibold hover:underline" style={{ color: 'var(--accent-teal)' }}
-                      onClick={() => { setSpecialty(''); setSelectedInsurance('') }}>
+                      onClick={() => { setProviderFilter(''); setSelectedInsurance(''); setDistanceFilter('nearest') }}>
                       Clear all
                     </button>
                   </p>
@@ -714,7 +1082,7 @@ export default function ProviderResultsPage() {
                       <div className="flex items-center gap-2 mb-2.5">
                         <div className="h-px flex-1" style={{ background: 'var(--border-subtle)' }} />
                         <button
-                          onClick={() => setSpecialty(specialty)}
+                          onClick={() => setProviderFilter(`specialty:${specialty}`)}
                           className="text-[11px] font-semibold uppercase tracking-wider px-2 hover:underline"
                           style={{ color: 'var(--accent-violet)' }}
                         >
@@ -754,16 +1122,56 @@ export default function ProviderResultsPage() {
         </div>
 
         {/* Map */}
-        <div className={`w-full md:w-[420px] shrink-0 ${activeTab === 'list' ? 'hidden md:block' : ''}`}>
-          <div className="sticky top-4">
-            <div className="rounded-2xl overflow-hidden" style={{ height: 600 }}>
+        <div className={`w-full lg:w-[520px] xl:w-[580px] shrink-0 ${activeTab === 'list' ? 'hidden md:block' : ''}`}>
+          <div className="md:sticky md:top-4">
+            <div className="rounded-2xl overflow-hidden border" style={{ height: 'min(720px, calc(100dvh - 132px))', minHeight: 460, borderColor: 'var(--border-subtle)', boxShadow: 'var(--shadow-card)' }}>
               <ProviderMap
                 markers={mapMarkers}
                 centerLat={effectiveLat}
                 centerLng={effectiveLng}
                 focusedMarkerId={focusedMarkerId}
+                focusVersion={focusVersion}
+                onMarkerSelect={handleMarkerSelect}
+                onRequestBooking={openHospitalActionsByMarker}
               />
             </div>
+            {selectedHospital && (
+              <GlassCard className="mt-3 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: 'var(--accent-teal-glow)', color: 'var(--accent-teal)' }}>
+                    <Building2 size={16} strokeWidth={1.75} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{hospitalName(selectedHospital)}</p>
+                    <p className="truncate text-xs" style={{ color: 'var(--text-muted)' }}>{hospitalAddress(selectedHospital)}</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {selectedHospital.lat && selectedHospital.lng && (
+                        <Button size="sm" as="a" href={directionsUrl(selectedHospital.lat, selectedHospital.lng, hospitalAddress(selectedHospital))} target="_blank" rel="noopener noreferrer">
+                          <Navigation size={13} strokeWidth={1.75} />
+                          Directions
+                        </Button>
+                      )}
+                      {hospitalPhone(selectedHospital) && (
+                        <Button size="sm" variant="secondary" as="a" href={`tel:${hospitalPhone(selectedHospital)}`}>
+                          <Phone size={13} strokeWidth={1.75} />
+                          Call
+                        </Button>
+                      )}
+                      {hospitalEmail(selectedHospital) && (
+                        <Button size="sm" variant="secondary" as="a" href={`mailto:${hospitalEmail(selectedHospital)}?subject=${contactSubject(hospitalName(selectedHospital))}&body=${contactBody(hospitalName(selectedHospital))}`}>
+                          <Mail size={13} strokeWidth={1.75} />
+                          Email
+                        </Button>
+                      )}
+                      <Button size="sm" variant="secondary" onClick={() => setActionHospital(selectedHospital)}>
+                        <CalendarPlus size={13} strokeWidth={1.75} />
+                        Appointments
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </GlassCard>
+            )}
           </div>
         </div>
       </div>
@@ -774,6 +1182,14 @@ export default function ProviderResultsPage() {
           patientId={user.uid}
           open={!!bookingDoctor}
           onClose={() => setBookingDoctor(null)}
+        />
+      )}
+      {actionHospital && user && (
+        <HospitalActionSheet
+          hospital={actionHospital}
+          patientId={user.uid}
+          open={!!actionHospital}
+          onClose={() => setActionHospital(null)}
         />
       )}
     </motion.div>
