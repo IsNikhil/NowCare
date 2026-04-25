@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { GoogleMap, MarkerF, InfoWindowF, useJsApiLoader } from '@react-google-maps/api'
 import { MAPS_API_KEY, DEFAULT_MAP_OPTIONS } from '../../services/maps'
 import { LoadingSpinner } from '../ui/LoadingSpinner'
@@ -17,11 +17,12 @@ type ProviderMapProps = {
   markers: MapMarker[]
   centerLat?: number
   centerLng?: number
+  focusedMarkerId?: string | null
 }
 
 const containerStyle = { width: '100%', height: '100%' }
 
-export function ProviderMap({ markers, centerLat = 30.5044, centerLng = -90.4612 }: ProviderMapProps) {
+export function ProviderMap({ markers, centerLat = 30.5044, centerLng = -90.4612, focusedMarkerId }: ProviderMapProps) {
   const mapRef = useRef<google.maps.Map | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
@@ -33,7 +34,12 @@ export function ProviderMap({ markers, centerLat = 30.5044, centerLng = -90.4612
   const onLoad = useCallback(
     (map: google.maps.Map) => {
       mapRef.current = map
-      if (markers.length > 0) {
+      const focusedMarker = focusedMarkerId ? markers.find((m) => m.id === focusedMarkerId) : null
+      if (focusedMarker) {
+        map.setCenter({ lat: focusedMarker.lat, lng: focusedMarker.lng })
+        map.setZoom(15)
+        setSelectedId(focusedMarker.id)
+      } else if (markers.length > 0) {
         const bounds = new window.google.maps.LatLngBounds()
         markers.forEach((m) => bounds.extend({ lat: m.lat, lng: m.lng }))
         map.fitBounds(bounds)
@@ -42,8 +48,17 @@ export function ProviderMap({ markers, centerLat = 30.5044, centerLng = -90.4612
         map.setZoom(11)
       }
     },
-    [markers, centerLat, centerLng]
+    [focusedMarkerId, markers, centerLat, centerLng]
   )
+
+  useEffect(() => {
+    if (!isLoaded || !mapRef.current || !focusedMarkerId) return
+    const marker = markers.find((m) => m.id === focusedMarkerId)
+    if (!marker) return
+    mapRef.current.panTo({ lat: marker.lat, lng: marker.lng })
+    mapRef.current.setZoom(15)
+    setSelectedId(marker.id)
+  }, [focusedMarkerId, isLoaded, markers])
 
   if (!MAPS_API_KEY || MAPS_API_KEY === 'REPLACE_ME') {
     return (
@@ -101,7 +116,7 @@ export function ProviderMap({ markers, centerLat = 30.5044, centerLng = -90.4612
           />
         ))}
 
-        {selectedMarker && selectedMarker.type === 'cms' && (
+        {selectedMarker && (
           <InfoWindowF
             position={{ lat: selectedMarker.lat, lng: selectedMarker.lng }}
             onCloseClick={() => setSelectedId(null)}
@@ -114,7 +129,9 @@ export function ProviderMap({ markers, centerLat = 30.5044, centerLng = -90.4612
               {selectedMarker.phone && (
                 <p className="text-xs text-slate-500 mb-1">{selectedMarker.phone}</p>
               )}
-              <p className="text-xs text-slate-400 italic">Not on NowCare yet - call to check availability</p>
+              {selectedMarker.type === 'cms' && (
+                <p className="text-xs text-slate-400 italic">Not on NowCare yet - call to check availability</p>
+              )}
             </div>
           </InfoWindowF>
         )}

@@ -18,6 +18,7 @@ import { fadeRise, stagger } from '../../lib/motion'
 import type { PatientDocument, DocumentCategory } from '../../types'
 
 const MAX_SIZE = 20 * 1024 * 1024 // 20MB
+const STORAGE_UPLOAD_TIMEOUT_MS = 25000
 const ACCEPTED_TYPES = {
   'image/jpeg': ['.jpg', '.jpeg'],
   'image/png': ['.png'],
@@ -41,6 +42,27 @@ function detectCategory(filename: string): DocumentCategory {
   if (lower.includes('mri') || lower.includes('ct') || lower.includes('xray') || lower.includes('scan') || lower.includes('imaging')) return 'scan_report'
   if (lower.includes('discharge') || lower.includes('summary')) return 'discharge_summary'
   return 'other'
+}
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message
+  if (typeof error === 'string') return error
+  return 'Unknown error'
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error(message)), ms)
+    promise
+      .then((value) => {
+        window.clearTimeout(timer)
+        resolve(value)
+      })
+      .catch((error) => {
+        window.clearTimeout(timer)
+        reject(error)
+      })
+  })
 }
 
 function UploadZone({ onUpload }: { onUpload: (files: File[]) => void }) {
@@ -115,29 +137,46 @@ export default function Documents() {
     if (!user) return
     for (const file of files) {
       const docId = `${Date.now()}_${Math.random().toString(36).slice(2)}`
-      setUploading((prev) => ({ ...prev, [docId]: 0 }))
+      const category = detectCategory(file.name)
+      let docRefId: string | null = null
+      setUploading((prev) => ({ ...prev, [docId]: 5 }))
       try {
-        const { downloadUrl, storagePath } = await uploadPatientDocument(user.uid, docId, file, (pct) => {
-          setUploading((prev) => ({ ...prev, [docId]: pct }))
-        })
-
-        const category = detectCategory(file.name)
         const docRef = await addDoc(collection(db, 'patient_documents'), {
           docId,
           patientId: user.uid,
           filename: file.name,
-          storagePath,
-          downloadUrl,
+          storagePath: '',
           contentType: file.type,
           uploadedAt: serverTimestamp(),
           category,
           analysisStatus: 'pending',
           fileSize: file.size,
         })
+        docRefId = docRef.id
 
-        toast.success(`Uploaded ${file.name}. Analyzing...`)
+        toast.success(`Added ${file.name}. Analyzing...`)
+        setUploading((prev) => ({ ...prev, [docId]: 20 }))
 
-        // Run Gemini analysis
+        try {
+          const { downloadUrl, storagePath } = await withTimeout(
+            uploadPatientDocument(user.uid, docId, file, (pct) => {
+              setUploading((prev) => ({ ...prev, [docId]: Math.max(20, Math.min(75, pct * 0.55 + 20)) }))
+            }),
+            STORAGE_UPLOAD_TIMEOUT_MS,
+            'Firebase Storage did not respond in time.'
+          )
+          await updateDoc(doc(db, 'patient_documents', docRef.id), { downloadUrl, storagePath })
+          setUploading((prev) => ({ ...prev, [docId]: 78 }))
+        } catch (error) {
+          const message = getErrorMessage(error)
+          await updateDoc(doc(db, 'patient_documents', docRef.id), {
+            storagePath: '',
+            uploadWarning: message,
+          })
+          toast.warning(`Saved ${file.name}, but the raw file could not be stored. Check Firebase Storage rules.`)
+          setUploading((prev) => ({ ...prev, [docId]: 78 }))
+        }
+
         try {
           let fileToAnalyze = file
           if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
@@ -152,13 +191,25 @@ export default function Documents() {
             analysis,
             analysisStatus: 'complete',
           })
+          setUploading((prev) => ({ ...prev, [docId]: 100 }))
           toast.success(`Analysis complete for ${file.name}`)
         } catch {
           await updateDoc(doc(db, 'patient_documents', docRef.id), { analysisStatus: 'failed' })
-          toast.error(`Could not analyze ${file.name}. You can view the raw file.`)
+          toast.error(
+            `Could not analyze ${file.name}.` +
+              (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                ? ' Try PDF, JPG, or PNG if this keeps happening.'
+                : '')
+          )
         }
-      } catch {
-        toast.error(`Upload failed for ${file.name}`)
+      } catch (error) {
+        if (docRefId) {
+          await updateDoc(doc(db, 'patient_documents', docRefId), {
+            analysisStatus: 'failed',
+            uploadWarning: getErrorMessage(error),
+          }).catch(() => {})
+        }
+        toast.error(`Upload failed for ${file.name}: ${getErrorMessage(error)}`)
       } finally {
         setUploading((prev) => { const n = { ...prev }; delete n[docId]; return n })
       }
@@ -309,6 +360,21 @@ export default function Documents() {
                     <ExternalLink size={12} strokeWidth={1.75} />
                     Open uploaded file
                   </button>
+                )}
+                {d.uploadWarning && (
+                  <div
+                    className="mt-3 flex items-start gap-2 rounded-xl border px-3 py-2 text-xs leading-relaxed"
+                    style={{
+                      borderColor: 'hsla(38,95%,60%,0.25)',
+                      background: 'hsla(38,95%,60%,0.08)',
+                      color: 'var(--text-secondary)',
+                    }}
+                  >
+                    <AlertTriangle size={13} strokeWidth={1.75} className="mt-0.5 shrink-0" style={{ color: 'var(--accent-amber)' }} />
+                    <span>
+                      Report saved, but the original file was not stored in Firebase Storage. Deploy storage rules if you need the file link.
+                    </span>
+                  </div>
                 )}
               </GlassCard>
             </motion.div>
