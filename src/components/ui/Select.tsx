@@ -24,7 +24,7 @@ export function Select({
   return (
     <div className="flex flex-col gap-1.5">
       {label && (
-        <label htmlFor={inputId} className="text-sm font-semibold text-ink-800">
+        <label htmlFor={inputId} className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
           {label}
         </label>
       )}
@@ -33,11 +33,11 @@ export function Select({
           id={inputId}
           className={[
             'w-full h-11 rounded-2xl px-4 pr-10 text-sm text-ink-800 appearance-none',
-            'bg-white/70 backdrop-blur-md',
+            'bg-[var(--bg-glass)] text-[var(--text-primary)] backdrop-blur-md',
             'border transition-all duration-150',
             error
               ? 'border-rose-400 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/15'
-              : 'border-white/60 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/15',
+              : 'border-[var(--border-subtle)] focus:border-[var(--accent-teal)] focus:ring-2 focus:ring-[var(--accent-teal-glow)]',
             'outline-none cursor-pointer',
             className,
           ]
@@ -59,11 +59,12 @@ export function Select({
         <ChevronDown
           size={16}
           strokeWidth={1.75}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+          className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
+          style={{ color: 'var(--text-muted)' }}
         />
       </div>
       {error && <p className="text-xs text-rose-500 mt-0.5">{error}</p>}
-      {helperText && !error && <p className="text-xs text-slate-500 mt-0.5">{helperText}</p>}
+      {helperText && !error && <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{helperText}</p>}
     </div>
   )
 }

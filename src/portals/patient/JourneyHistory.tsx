@@ -1,23 +1,31 @@
-import { useState, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { where, orderBy } from 'firebase/firestore'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import {
-  Stethoscope, FileText, AlertTriangle, Clock, Scan, Video,
-  CalendarDays, Leaf, Siren, X, ArrowRight, CheckCircle,
-  ChevronRight, Activity,
+  Activity,
+  AlertTriangle,
+  ArrowRight,
+  CalendarDays,
+  CheckCircle,
+  Clock,
+  FileText,
+  Leaf,
+  Scan,
+  Siren,
+  Stethoscope,
+  Video,
 } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useFirestoreCollection } from '../../hooks/useFirestoreCollection'
 import { GlassCard } from '../../components/ui/GlassCard'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
-import { BottomSheet } from '../../components/ui/BottomSheet'
 import { SkeletonList } from '../../components/ui/Skeleton'
 import { CARE_CATEGORY_CONFIG } from '../../lib/careCategories'
-import { formatDate, formatDateTime, formatRelativeTime } from '../../lib/format'
-import { fadeRise, stagger, slideFromRight, scaleIn } from '../../lib/motion'
-import type { CareJourney, PatientDocument } from '../../types'
+import { formatDateTime, formatRelativeTime } from '../../lib/format'
+import { fadeRise, stagger } from '../../lib/motion'
+import type { CareCategory, CareJourney, PatientDocument } from '../../types'
 
 type FilterTab = 'all' | 'assessments' | 'documents'
 
@@ -25,179 +33,374 @@ type TimelineItem =
   | { type: 'assessment'; id: string; date: any; data: CareJourney }
   | { type: 'document'; id: string; date: any; data: PatientDocument }
 
-const CARE_ICONS: Record<string, React.ReactNode> = {
-  ER_NOW: <Siren size={14} strokeWidth={1.75} />,
-  URGENT_TODAY: <Clock size={14} strokeWidth={1.75} />,
-  SCAN_NEEDED: <Scan size={14} strokeWidth={1.75} />,
-  TELEHEALTH: <Video size={14} strokeWidth={1.75} />,
-  SCHEDULE_DOCTOR: <CalendarDays size={14} strokeWidth={1.75} />,
-  SELF_CARE: <Leaf size={14} strokeWidth={1.75} />,
+const CARE_ICONS: Record<CareCategory, React.ReactNode> = {
+  ER_NOW: <Siren size={16} strokeWidth={1.75} />,
+  URGENT_TODAY: <Clock size={16} strokeWidth={1.75} />,
+  SCAN_NEEDED: <Scan size={16} strokeWidth={1.75} />,
+  TELEHEALTH: <Video size={16} strokeWidth={1.75} />,
+  SCHEDULE_DOCTOR: <CalendarDays size={16} strokeWidth={1.75} />,
+  SELF_CARE: <Leaf size={16} strokeWidth={1.75} />,
 }
 
-function formatMonthYear(ts: any): string {
+function getItemId(item: TimelineItem) {
+  return `${item.type}:${item.id}`
+}
+
+function getMonthLabel(ts: any) {
+  if (!ts?.toDate) return 'Undated'
   return ts.toDate().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
 }
 
 function groupByMonth(items: TimelineItem[]) {
   const groups: Record<string, TimelineItem[]> = {}
   for (const item of items) {
-    if (!item.date) continue
-    const key = formatMonthYear(item.date)
-    if (!groups[key]) groups[key] = []
+    const key = getMonthLabel(item.date)
+    groups[key] ??= []
     groups[key].push(item)
   }
   return groups
 }
 
-function AssessmentNode({ journey }: { journey: CareJourney }) {
-  const cat = journey.triage_result?.care_category
-  const cfg = cat ? CARE_CATEGORY_CONFIG[cat] : null
-  return (
-    <div
-      className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-      style={{
-        background: cfg ? `${cfg.color}18` : 'var(--surface-tint)',
-        color: cfg?.color ?? 'var(--text-muted)',
-      }}
-    >
-      {cat ? CARE_ICONS[cat] : <Stethoscope size={14} strokeWidth={1.75} />}
-    </div>
-  )
+function assessmentVariant(cat?: CareCategory): 'danger' | 'warning' | 'success' | 'teal' {
+  if (cat === 'ER_NOW') return 'danger'
+  if (cat === 'URGENT_TODAY') return 'warning'
+  if (cat === 'SELF_CARE') return 'success'
+  return 'teal'
 }
 
-function DocumentNode({ doc }: { doc: PatientDocument }) {
-  return (
-    <div
-      className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-      style={{ background: 'hsla(265,70%,65%,0.1)', color: 'var(--accent-violet)' }}
-    >
-      <FileText size={14} strokeWidth={1.75} />
-    </div>
-  )
+function titleCase(value: string) {
+  return value
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase())
 }
 
-function AssessmentDetail({ journey, onClose }: { journey: CareJourney; onClose: () => void }) {
-  const navigate = useNavigate()
+function getAssessmentTitle(journey: CareJourney) {
   const cat = journey.triage_result?.care_category
   const cfg = cat ? CARE_CATEGORY_CONFIG[cat] : null
+  return cfg?.headline ?? 'Assessment result not saved'
+}
 
-  return (
-    <div className="space-y-4">
-      {cfg && (
-        <div
-          className="rounded-2xl p-4 flex items-center gap-3"
-          style={{ background: `${cfg.color}12`, border: `1px solid ${cfg.color}30` }}
+function EventCard({
+  item,
+  selected,
+  onSelect,
+}: {
+  item: TimelineItem
+  selected: boolean
+  onSelect: () => void
+}) {
+  if (item.type === 'assessment') {
+    const journey = item.data
+    const cat = journey.triage_result?.care_category
+    const cfg = cat ? CARE_CATEGORY_CONFIG[cat] : null
+    const color = cfg?.color ?? 'var(--accent-teal)'
+    const resultChips = [
+      cat ? cfg?.label ?? titleCase(cat) : null,
+      journey.triage_result?.urgency ? titleCase(journey.triage_result.urgency) : null,
+      journey.triage_result?.recommended_specialty,
+      journey.triage_result?.scan_type,
+    ].filter(Boolean)
+
+    return (
+      <button onClick={onSelect} className="block w-full text-left">
+        <GlassCard
+          className="p-4 transition-all"
+          style={{
+            borderColor: selected ? `color-mix(in oklch, ${color} 45%, transparent)` : undefined,
+            background: selected ? `linear-gradient(135deg, color-mix(in oklch, ${color} 10%, var(--bg-glass)), var(--bg-glass))` : undefined,
+          }}
         >
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${cfg.color}20`, color: cfg.color }}>
-            {cat && CARE_ICONS[cat]}
+          <div className="flex gap-4">
+            <div
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border"
+              style={{
+                background: `color-mix(in oklch, ${color} 14%, transparent)`,
+                borderColor: `color-mix(in oklch, ${color} 35%, transparent)`,
+                color,
+              }}
+            >
+              {cat ? CARE_ICONS[cat] : <Stethoscope size={16} strokeWidth={1.75} />}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <Badge variant={cat ? assessmentVariant(cat) : 'teal'}>
+                  {cat ? 'Gemini result' : 'Symptoms only'}
+                </Badge>
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  {item.date ? formatRelativeTime(item.date) : 'No date'}
+                </span>
+              </div>
+              <p className="line-clamp-2 text-base font-extrabold leading-snug" style={{ color: 'var(--text-primary)' }}>
+                {getAssessmentTitle(journey)}
+              </p>
+              {resultChips.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {resultChips.map((chip) => (
+                    <span
+                      key={chip}
+                      className="rounded-lg border px-2 py-1 text-[11px] font-semibold"
+                      style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-tint)', color: 'var(--text-secondary)' }}
+                    >
+                      {chip}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <p className="mt-3 line-clamp-2 text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>Symptoms: </span>
+                {journey.symptoms || 'No symptoms recorded'}
+              </p>
+              {journey.triage_result?.short_reasoning && (
+                <p className="mt-2 line-clamp-2 text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                  {journey.triage_result.short_reasoning}
+                </p>
+              )}
+              {!journey.triage_result && (
+                <p className="mt-2 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                  This older entry has symptoms but no saved Gemini triage result.
+                </p>
+              )}
+            </div>
           </div>
-          <div>
-            <p className="text-sm font-bold" style={{ color: cfg.color }}>{cfg.label}</p>
-            <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>{cfg.urgencyLabel}</p>
+        </GlassCard>
+      </button>
+    )
+  }
+
+  const doc = item.data
+  return (
+    <button onClick={onSelect} className="block w-full text-left">
+      <GlassCard
+        className="p-4 transition-all"
+        style={{
+          borderColor: selected ? 'hsla(265,70%,72%,0.42)' : undefined,
+          background: selected ? 'linear-gradient(135deg, hsla(265,70%,72%,0.08), var(--bg-glass))' : undefined,
+        }}
+      >
+        <div className="flex gap-4">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[hsla(265,70%,72%,0.35)] bg-[hsla(265,70%,72%,0.12)] text-[var(--accent-violet)]">
+            <FileText size={16} strokeWidth={1.75} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <Badge variant="violet">{doc.category.replace(/_/g, ' ')}</Badge>
+              <Badge variant={doc.analysisStatus === 'complete' ? 'success' : doc.analysisStatus === 'failed' ? 'danger' : 'teal'}>
+                {doc.analysisStatus === 'complete' ? 'Analyzed' : doc.analysisStatus === 'failed' ? 'Failed' : 'Pending'}
+              </Badge>
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                {item.date ? formatRelativeTime(item.date) : 'No date'}
+              </span>
+            </div>
+            <p className="truncate text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{doc.filename}</p>
+            {doc.analysis?.summary && (
+              <p className="mt-2 line-clamp-2 text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                {doc.analysis.summary}
+              </p>
+            )}
           </div>
         </div>
-      )}
-
-      {journey.symptoms && (
-        <div>
-          <p className="text-xs font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>SYMPTOMS REPORTED</p>
-          <p className="text-sm leading-relaxed" style={{ color: 'var(--text-primary)' }}>{journey.symptoms}</p>
-        </div>
-      )}
-
-      {journey.triage_result?.short_reasoning && (
-        <div>
-          <p className="text-xs font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>AI ASSESSMENT</p>
-          <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{journey.triage_result.short_reasoning}</p>
-        </div>
-      )}
-
-      {journey.triage_result?.red_flags && journey.triage_result.red_flags.length > 0 && (
-        <div className="rounded-xl p-3" style={{ background: 'hsla(8,90%,65%,0.08)' }}>
-          <div className="flex items-center gap-2 mb-2">
-            <AlertTriangle size={12} strokeWidth={1.75} style={{ color: 'var(--accent-coral)' }} />
-            <p className="text-xs font-semibold" style={{ color: 'var(--accent-coral)' }}>Red Flags</p>
-          </div>
-          <ul className="space-y-1">
-            {journey.triage_result.red_flags.map((flag, i) => (
-              <li key={i} className="text-xs flex items-start gap-2" style={{ color: 'var(--text-secondary)' }}>
-                <span className="mt-1 shrink-0 w-1 h-1 rounded-full" style={{ background: 'var(--accent-coral)' }} />
-                {flag}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {journey.triage_result?.what_to_expect && (
-        <div>
-          <p className="text-xs font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>WHAT TO EXPECT</p>
-          <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{journey.triage_result.what_to_expect}</p>
-        </div>
-      )}
-
-      {journey.triage_result?.recommended_specialty && (
-        <div className="flex items-center gap-2">
-          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Specialty:</span>
-          <Badge variant="teal">{journey.triage_result.recommended_specialty}</Badge>
-        </div>
-      )}
-
-      <Button size="sm" className="w-full" onClick={() => { onClose(); navigate('/patient/assess') }}>
-        New assessment
-        <ArrowRight size={14} strokeWidth={1.75} />
-      </Button>
-    </div>
+      </GlassCard>
+    </button>
   )
 }
 
-function DocumentDetail({ document: doc, onClose }: { document: PatientDocument; onClose: () => void }) {
-  const navigate = useNavigate()
+function EmptyDetail() {
   return (
-    <div className="space-y-4">
-      <div className="rounded-2xl p-4" style={{ background: 'hsla(265,70%,65%,0.08)', border: '1px solid hsla(265,70%,65%,0.2)' }}>
-        <p className="text-sm font-bold" style={{ color: 'var(--accent-violet)' }}>{doc.filename}</p>
-        {doc.analysis?.document_type && (
-          <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>{doc.analysis.document_type}</p>
-        )}
+    <GlassCard className="p-8 text-center">
+      <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl" style={{ background: 'var(--surface-tint)', color: 'var(--text-muted)' }}>
+        <Activity size={24} strokeWidth={1.5} />
+      </div>
+      <p className="font-semibold" style={{ color: 'var(--text-primary)' }}>Select an item</p>
+      <p className="mt-1 text-sm" style={{ color: 'var(--text-muted)' }}>
+        Pick an assessment or document to review the details here.
+      </p>
+    </GlassCard>
+  )
+}
+
+function AssessmentDetail({ journey }: { journey: CareJourney }) {
+  const navigate = useNavigate()
+  const cat = journey.triage_result?.care_category
+  const cfg = cat ? CARE_CATEGORY_CONFIG[cat] : null
+  const color = cfg?.color ?? 'var(--accent-teal)'
+  const savedResultRows = [
+    { label: 'Care category', value: cat ? `${cfg?.label ?? titleCase(cat)} (${cat})` : null },
+    { label: 'Urgency', value: journey.triage_result?.urgency ? titleCase(journey.triage_result.urgency) : null },
+    { label: 'Specialty', value: journey.triage_result?.recommended_specialty },
+    { label: 'Scan type', value: journey.triage_result?.scan_type },
+    { label: 'Provider type', value: cfg?.providerType ? titleCase(cfg.providerType) : null },
+  ].filter((row) => row.value)
+
+  return (
+    <GlassCard variant="elevated" className="p-5">
+      <div className="mb-5 flex items-start gap-3">
+        <div
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border"
+          style={{
+            background: `color-mix(in oklch, ${color} 14%, transparent)`,
+            borderColor: `color-mix(in oklch, ${color} 35%, transparent)`,
+            color,
+          }}
+        >
+          {cat ? CARE_ICONS[cat] : <Stethoscope size={18} strokeWidth={1.75} />}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Assessment</p>
+          <h2 className="mt-1 text-xl font-extrabold tracking-tight" style={{ color: 'var(--text-primary)' }}>
+            {cfg?.headline ?? 'Care recommendation'}
+          </h2>
+          {cfg?.subhead && (
+            <p className="mt-2 text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{cfg.subhead}</p>
+          )}
+          <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>{formatDateTime(journey.createdAt)}</p>
+        </div>
       </div>
 
-      {doc.analysis?.summary && (
-        <div>
-          <p className="text-xs font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>SUMMARY</p>
-          <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{doc.analysis.summary}</p>
-        </div>
-      )}
-
-      {doc.analysis?.red_flags && doc.analysis.red_flags.length > 0 && (
-        <div className="rounded-xl p-3" style={{ background: 'hsla(8,90%,65%,0.08)' }}>
-          <div className="flex items-center gap-2 mb-2">
-            <AlertTriangle size={12} strokeWidth={1.75} style={{ color: 'var(--accent-coral)' }} />
-            <p className="text-xs font-semibold" style={{ color: 'var(--accent-coral)' }}>
-              {doc.analysis.red_flags.length} item{doc.analysis.red_flags.length > 1 ? 's' : ''} need attention
+      <div className="space-y-4">
+        {journey.triage_result ? (
+          <section className="rounded-2xl border p-4" style={{ borderColor: `color-mix(in oklch, ${color} 36%, transparent)`, background: `color-mix(in oklch, ${color} 9%, var(--surface-tint))` }}>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <p className="text-xs font-bold uppercase tracking-wider" style={{ color }}>Saved Gemini result</p>
+              <Badge variant={assessmentVariant(cat)}>{cfg?.urgencyLabel ?? titleCase(journey.triage_result.urgency)}</Badge>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {savedResultRows.map((row) => (
+                <div key={row.label} className="rounded-xl border p-3" style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-glass)' }}>
+                  <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{row.label}</p>
+                  <p className="mt-1 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{row.value}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : (
+          <section className="rounded-2xl border p-4" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-tint)' }}>
+            <p className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Symptoms saved only</p>
+            <p className="mt-2 text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+              This assessment was saved before the Gemini triage result was stored. New assessments will show the recommendation here.
             </p>
-          </div>
-          <ul className="space-y-1">
-            {doc.analysis.red_flags.map((flag, i) => (
-              <li key={i} className="text-xs" style={{ color: 'var(--text-secondary)' }}>{flag}</li>
-            ))}
-          </ul>
-        </div>
-      )}
+          </section>
+        )}
 
-      <div className="flex gap-2">
-        <Badge variant={doc.analysisStatus === 'complete' ? 'success' : doc.analysisStatus === 'failed' ? 'danger' : 'teal'}>
-          {doc.analysisStatus === 'complete' ? (
-            <><CheckCircle size={10} className="mr-1" />Analyzed</>
-          ) : doc.analysisStatus === 'failed' ? 'Analysis failed' : 'Analyzing...'}
-        </Badge>
+        <section>
+          <p className="mb-1.5 text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Symptoms reported</p>
+          <p className="text-sm leading-relaxed" style={{ color: 'var(--text-primary)' }}>{journey.symptoms || 'No symptoms recorded.'}</p>
+        </section>
+
+        {journey.triage_result?.short_reasoning && (
+          <section className="rounded-xl border p-3" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-tint)' }}>
+            <p className="mb-1.5 text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Why this recommendation</p>
+            <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{journey.triage_result.short_reasoning}</p>
+          </section>
+        )}
+
+        {journey.triage_result?.red_flags && journey.triage_result.red_flags.length > 0 && (
+          <section className="rounded-xl border p-3" style={{ background: 'hsla(8,90%,68%,0.08)', borderColor: 'hsla(8,90%,68%,0.25)' }}>
+            <div className="mb-2 flex items-center gap-2">
+              <AlertTriangle size={13} strokeWidth={1.75} style={{ color: 'var(--accent-coral)' }} />
+              <p className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--accent-coral)' }}>Go to ER if these appear</p>
+            </div>
+            <ul className="space-y-1">
+              {journey.triage_result.red_flags.map((flag, i) => (
+                <li key={i} className="flex items-start gap-2 text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                  <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full" style={{ background: 'var(--accent-coral)' }} />
+                  {flag}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {journey.triage_result?.what_to_expect && (
+          <section>
+            <p className="mb-1.5 text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>What to expect</p>
+            <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{journey.triage_result.what_to_expect}</p>
+          </section>
+        )}
+
+        <div className="flex flex-col gap-2 sm:flex-row lg:flex-col xl:flex-row">
+          <Button className="flex-1" onClick={() => navigate('/patient/providers')}>
+            Find care
+            <ArrowRight size={14} strokeWidth={1.75} />
+          </Button>
+          <Button className="flex-1" variant="secondary" onClick={() => navigate('/patient/assess')}>
+            New assessment
+          </Button>
+        </div>
+      </div>
+    </GlassCard>
+  )
+}
+
+function DocumentDetail({ document }: { document: PatientDocument }) {
+  const navigate = useNavigate()
+
+  return (
+    <GlassCard variant="elevated" className="p-5">
+      <div className="mb-5 flex items-start gap-3">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[hsla(265,70%,72%,0.35)] bg-[hsla(265,70%,72%,0.12)] text-[var(--accent-violet)]">
+          <FileText size={18} strokeWidth={1.75} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Document</p>
+          <h2 className="mt-1 truncate text-xl font-extrabold tracking-tight" style={{ color: 'var(--text-primary)' }}>
+            {document.analysis?.document_type || document.filename}
+          </h2>
+          <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>{formatDateTime(document.uploadedAt)}</p>
+        </div>
       </div>
 
-      <Button size="sm" className="w-full" onClick={() => { onClose(); navigate(`/patient/documents/${doc.docId}`) }}>
-        View full analysis
-        <ArrowRight size={14} strokeWidth={1.75} />
-      </Button>
-    </div>
+      <div className="space-y-4">
+        <section>
+          <p className="mb-1.5 text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>File</p>
+          <p className="break-words text-sm leading-relaxed" style={{ color: 'var(--text-primary)' }}>{document.filename}</p>
+        </section>
+
+        <div className="flex flex-wrap gap-2">
+          <Badge variant={document.analysisStatus === 'complete' ? 'success' : document.analysisStatus === 'failed' ? 'danger' : 'teal'}>
+            {document.analysisStatus === 'complete' ? (
+              <>
+                <CheckCircle size={10} className="mr-1" />
+                Analyzed
+              </>
+            ) : document.analysisStatus === 'failed' ? 'Analysis failed' : 'Analyzing'}
+          </Badge>
+          <Badge variant="default">{document.category.replace(/_/g, ' ')}</Badge>
+        </div>
+
+        {document.analysis?.summary ? (
+          <section className="rounded-xl border p-3" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-tint)' }}>
+            <p className="mb-1.5 text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Report summary</p>
+            <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{document.analysis.summary}</p>
+          </section>
+        ) : (
+          <section className="rounded-xl border p-3" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-tint)' }}>
+            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+              {document.analysisStatus === 'pending' ? 'Analysis is still running.' : 'No summary is available for this document.'}
+            </p>
+          </section>
+        )}
+
+        {document.analysis?.red_flags && document.analysis.red_flags.length > 0 && (
+          <section className="rounded-xl border p-3" style={{ background: 'hsla(8,90%,68%,0.08)', borderColor: 'hsla(8,90%,68%,0.25)' }}>
+            <div className="mb-2 flex items-center gap-2">
+              <AlertTriangle size={13} strokeWidth={1.75} style={{ color: 'var(--accent-coral)' }} />
+              <p className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--accent-coral)' }}>Needs attention</p>
+            </div>
+            <ul className="space-y-1">
+              {document.analysis.red_flags.map((flag, i) => (
+                <li key={i} className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{flag}</li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        <Button className="w-full" onClick={() => navigate(`/patient/documents/${document.docId}`)}>
+          View full analysis
+          <ArrowRight size={14} strokeWidth={1.75} />
+        </Button>
+      </div>
+    </GlassCard>
   )
 }
 
@@ -205,8 +408,7 @@ export default function JourneyHistory() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<FilterTab>('all')
-  const [selectedItem, setSelectedItem] = useState<TimelineItem | null>(null)
-  const [sheetOpen, setSheetOpen] = useState(false)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
 
   const { data: journeys, loading: journeysLoading } = useFirestoreCollection<CareJourney>(
     'care_journeys',
@@ -220,42 +422,41 @@ export default function JourneyHistory() {
 
   const loading = journeysLoading || docsLoading
 
-  const allItems: TimelineItem[] = useMemo(() => {
+  const allItems = useMemo<TimelineItem[]>(() => {
     const assessments = journeys.map((j) => ({
       type: 'assessment' as const,
-      id: j.id ?? '',
+      id: j.id ?? `assessment-${j.createdAt?.toMillis?.() ?? Math.random()}`,
       date: j.createdAt,
       data: j,
     }))
     const docs = documents.map((d) => ({
       type: 'document' as const,
-      id: d.id ?? '',
+      id: d.id ?? d.docId,
       date: d.uploadedAt,
       data: d,
     }))
-    return [...assessments, ...docs].sort((a, b) => {
-      if (!a.date || !b.date) return 0
-      return b.date.toMillis() - a.date.toMillis()
-    })
+    return [...assessments, ...docs].sort((a, b) => (b.date?.toMillis?.() ?? 0) - (a.date?.toMillis?.() ?? 0))
   }, [journeys, documents])
 
   const filteredItems = useMemo(() => {
-    if (activeTab === 'assessments') return allItems.filter((i) => i.type === 'assessment')
-    if (activeTab === 'documents') return allItems.filter((i) => i.type === 'document')
+    if (activeTab === 'assessments') return allItems.filter((item) => item.type === 'assessment')
+    if (activeTab === 'documents') return allItems.filter((item) => item.type === 'document')
     return allItems
-  }, [allItems, activeTab])
+  }, [activeTab, allItems])
 
   const groupedItems = useMemo(() => groupByMonth(filteredItems), [filteredItems])
 
-  function handleSelect(item: TimelineItem) {
-    setSelectedItem(item)
-    setSheetOpen(true)
-  }
+  useEffect(() => {
+    if (filteredItems.length === 0) {
+      setSelectedId(null)
+      return
+    }
+    if (!selectedId || !filteredItems.some((item) => getItemId(item) === selectedId)) {
+      setSelectedId(getItemId(filteredItems[0]))
+    }
+  }, [filteredItems, selectedId])
 
-  function handleClose() {
-    setSheetOpen(false)
-    setTimeout(() => setSelectedItem(null), 300)
-  }
+  const selectedItem = filteredItems.find((item) => getItemId(item) === selectedId) ?? null
 
   const tabs: { id: FilterTab; label: string; count: number }[] = [
     { id: 'all', label: 'All', count: allItems.length },
@@ -263,314 +464,122 @@ export default function JourneyHistory() {
     { id: 'documents', label: 'Documents', count: documents.length },
   ]
 
+  const stats = [
+    { label: 'Assessments', value: journeys.length, color: 'var(--accent-teal)' },
+    { label: 'Results saved', value: journeys.filter((j) => Boolean(j.triage_result)).length, color: 'var(--accent-teal-2)' },
+    { label: 'Documents', value: documents.length, color: 'var(--accent-violet)' },
+    {
+      label: 'Needs attention',
+      value:
+        journeys.filter((j) => (j.triage_result?.red_flags?.length ?? 0) > 0).length +
+        documents.filter((d) => (d.analysis?.red_flags?.length ?? 0) > 0).length,
+      color: 'var(--accent-coral)',
+    },
+  ]
+
   return (
-    <div className="max-w-5xl mx-auto flex gap-6">
-      {/* Main timeline */}
-      <motion.div
-        variants={stagger}
-        initial="initial"
-        animate="animate"
-        className="flex-1 min-w-0 space-y-6"
-      >
-        {/* Header */}
-        <motion.div variants={fadeRise}>
-          <div className="flex items-center justify-between mb-1">
-            <h1 className="text-3xl font-extrabold tracking-tight" style={{ color: 'var(--text-primary)' }}>
-              My History
-            </h1>
-            <Button size="sm" onClick={() => navigate('/patient/assess')}>
-              <Stethoscope size={14} strokeWidth={1.75} />
-              New assessment
-            </Button>
-          </div>
-          <p className="text-base" style={{ color: 'var(--text-secondary)' }}>
-            All your assessments and uploaded documents in one place.
+    <motion.div variants={stagger} initial="initial" animate="animate" className="mx-auto max-w-7xl space-y-6">
+      <motion.div variants={fadeRise} className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="mb-2 text-xs font-bold uppercase tracking-[0.12em]" style={{ color: 'var(--accent-teal)' }}>Care timeline</p>
+          <h1 className="text-3xl font-extrabold tracking-tight" style={{ color: 'var(--text-primary)' }}>My History</h1>
+          <p className="mt-1 text-base" style={{ color: 'var(--text-secondary)' }}>
+            Assessments and uploaded reports in one clean timeline.
           </p>
-        </motion.div>
+        </div>
+        <Button onClick={() => navigate('/patient/assess')}>
+          <Stethoscope size={16} strokeWidth={1.75} />
+          New assessment
+        </Button>
+      </motion.div>
 
-        {/* Filter tabs */}
-        <motion.div variants={fadeRise}>
-          <div className="flex gap-1 p-1 rounded-xl w-fit" style={{ background: 'var(--bg-elevated)' }}>
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className="px-3 py-1.5 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center gap-1.5"
-                style={{
-                  background: activeTab === tab.id ? 'var(--bg-glass)' : 'transparent',
-                  color: activeTab === tab.id ? 'var(--text-primary)' : 'var(--text-muted)',
-                  boxShadow: activeTab === tab.id ? 'var(--shadow-card)' : 'none',
-                }}
-              >
-                {tab.label}
-                {tab.count > 0 && (
-                  <span
-                    className="text-xs px-1.5 py-0.5 rounded-md font-mono"
-                    style={{
-                      background: activeTab === tab.id ? 'var(--accent-teal-glow)' : 'var(--surface-tint)',
-                      color: activeTab === tab.id ? 'var(--accent-teal)' : 'var(--text-muted)',
-                    }}
-                  >
-                    {tab.count}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-        </motion.div>
+      <motion.div variants={fadeRise} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {stats.map((stat) => (
+          <GlassCard key={stat.label} className="p-4">
+            <p className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{stat.label}</p>
+            <p className="mt-2 font-mono text-3xl font-black leading-none" style={{ color: stat.color }}>{stat.value}</p>
+          </GlassCard>
+        ))}
+      </motion.div>
 
-        {/* Loading */}
-        {loading && <SkeletonList count={4} />}
+      <motion.div variants={fadeRise}>
+        <div className="flex w-fit gap-1 rounded-xl p-1" style={{ background: 'var(--surface-tint)' }}>
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-all"
+              style={{
+                background: activeTab === tab.id ? 'var(--bg-elevated)' : 'transparent',
+                color: activeTab === tab.id ? 'var(--text-primary)' : 'var(--text-muted)',
+                border: activeTab === tab.id ? '1px solid var(--border-subtle)' : '1px solid transparent',
+              }}
+            >
+              {tab.label}
+              <span className="rounded-md px-1.5 py-0.5 font-mono text-xs" style={{ background: 'var(--bg-glass)', color: 'var(--text-muted)' }}>
+                {tab.count}
+              </span>
+            </button>
+          ))}
+        </div>
+      </motion.div>
 
-        {/* Empty state */}
-        {!loading && filteredItems.length === 0 && (
-          <motion.div variants={fadeRise}>
+      <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <motion.div variants={fadeRise} className="min-w-0 space-y-6">
+          {loading && <SkeletonList count={4} />}
+
+          {!loading && filteredItems.length === 0 && (
             <GlassCard className="p-10 text-center">
-              <div className="w-16 h-16 rounded-3xl flex items-center justify-center mx-auto mb-4"
-                style={{ background: 'var(--surface-tint)', color: 'var(--text-muted)' }}>
-                <Activity size={32} strokeWidth={1.25} />
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl" style={{ background: 'var(--surface-tint)', color: 'var(--text-muted)' }}>
+                <Activity size={30} strokeWidth={1.5} />
               </div>
-              <p className="font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>
-                {activeTab === 'all' ? 'No history yet' : `No ${activeTab} yet`}
+              <p className="font-semibold" style={{ color: 'var(--text-primary)' }}>
+                {activeTab === 'documents' ? 'No documents yet' : activeTab === 'assessments' ? 'No assessments yet' : 'No history yet'}
               </p>
-              <p className="text-sm mb-4" style={{ color: 'var(--text-muted)' }}>
-                {activeTab === 'documents'
-                  ? 'Upload your first lab result or scan report.'
-                  : 'Start an assessment to get personalized care recommendations.'}
+              <p className="mt-1 text-sm" style={{ color: 'var(--text-muted)' }}>
+                {activeTab === 'documents' ? 'Upload your first lab result or scan report.' : 'Start an assessment to build your care timeline.'}
               </p>
-              <Button size="sm" onClick={() => navigate(activeTab === 'documents' ? '/patient/documents' : '/patient/assess')}>
+              <Button className="mt-5" size="sm" onClick={() => navigate(activeTab === 'documents' ? '/patient/documents' : '/patient/assess')}>
                 {activeTab === 'documents' ? 'Upload document' : 'Start assessment'}
               </Button>
             </GlassCard>
-          </motion.div>
-        )}
+          )}
 
-        {/* Timeline grouped by month */}
-        {!loading && Object.keys(groupedItems).length > 0 && (
-          <div className="space-y-8">
-            {Object.entries(groupedItems).map(([month, items]) => (
-              <motion.div key={month} variants={fadeRise}>
-                {/* Month header */}
-                <div className="flex items-center gap-3 mb-4">
-                  <span className="text-xs font-bold tracking-wider uppercase" style={{ color: 'var(--text-muted)' }}>
-                    {month}
-                  </span>
-                  <div className="flex-1 h-px" style={{ background: 'var(--border-subtle)' }} />
-                  <span className="text-xs font-mono" style={{ color: 'var(--text-muted)' }}>
-                    {items.length} event{items.length !== 1 ? 's' : ''}
-                  </span>
-                </div>
-
-                {/* Timeline items */}
-                <div className="relative">
-                  {/* Vertical spine */}
-                  <div
-                    className="absolute left-[17px] top-5 bottom-5 w-px"
-                    style={{ background: 'var(--border-subtle)' }}
+          {!loading && Object.entries(groupedItems).map(([month, items]) => (
+            <section key={month}>
+              <div className="mb-3 flex items-center gap-3">
+                <p className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{month}</p>
+                <div className="h-px flex-1" style={{ background: 'var(--border-subtle)' }} />
+                <p className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>{items.length}</p>
+              </div>
+              <div className="space-y-3">
+                {items.map((item) => (
+                  <EventCard
+                    key={getItemId(item)}
+                    item={item}
+                    selected={getItemId(item) === selectedId}
+                    onSelect={() => setSelectedId(getItemId(item))}
                   />
+                ))}
+              </div>
+            </section>
+          ))}
+        </motion.div>
 
-                  <div className="space-y-3">
-                    {items.map((item, idx) => {
-                      const isSelected = selectedItem?.id === item.id
-
-                      if (item.type === 'assessment') {
-                        const journey = item.data as CareJourney
-                        const cat = journey.triage_result?.care_category
-                        const cfg = cat ? CARE_CATEGORY_CONFIG[cat] : null
-
-                        return (
-                          <motion.div
-                            key={item.id}
-                            variants={fadeRise}
-                            style={{ transitionDelay: `${idx * 30}ms` }}
-                            className="flex gap-4 items-start cursor-pointer"
-                            onClick={() => handleSelect(item)}
-                          >
-                            {/* Node */}
-                            <div className="shrink-0 relative z-10">
-                              <div
-                                className="w-9 h-9 rounded-xl flex items-center justify-center transition-all"
-                                style={{
-                                  background: cfg ? `${cfg.color}18` : 'var(--surface-tint)',
-                                  color: cfg?.color ?? 'var(--text-muted)',
-                                  boxShadow: isSelected && cfg ? `0 0 0 2px ${cfg.color}40` : 'none',
-                                }}
-                              >
-                                {cat ? CARE_ICONS[cat] : <Stethoscope size={14} strokeWidth={1.75} />}
-                              </div>
-                            </div>
-
-                            {/* Card */}
-                            <GlassCard
-                              variant="interactive"
-                              className="flex-1 p-3.5"
-                              style={{
-                                borderColor: isSelected && cfg ? `${cfg.color}40` : undefined,
-                              }}
-                            >
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
-                                    {journey.symptoms ? journey.symptoms.slice(0, 72) : 'Assessment'}
-                                  </p>
-                                  <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                    {cfg && (
-                                      <Badge variant={
-                                        cat === 'ER_NOW' ? 'danger' :
-                                        cat === 'URGENT_TODAY' ? 'warning' :
-                                        cat === 'SELF_CARE' ? 'success' : 'teal'
-                                      }>
-                                        {cfg.label}
-                                      </Badge>
-                                    )}
-                                    {journey.triage_result?.red_flags && journey.triage_result.red_flags.length > 0 && (
-                                      <span className="text-xs flex items-center gap-1" style={{ color: 'var(--accent-coral)' }}>
-                                        <AlertTriangle size={10} strokeWidth={1.75} />
-                                        {journey.triage_result.red_flags.length} flag{journey.triage_result.red_flags.length > 1 ? 's' : ''}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-1.5 shrink-0">
-                                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                                    {item.date && formatRelativeTime(item.date)}
-                                  </span>
-                                  <ChevronRight size={14} strokeWidth={1.75} style={{ color: 'var(--text-muted)' }} />
-                                </div>
-                              </div>
-                            </GlassCard>
-                          </motion.div>
-                        )
-                      }
-
-                      // Document item
-                      const doc = item.data as PatientDocument
-                      return (
-                        <motion.div
-                          key={item.id}
-                          variants={fadeRise}
-                          style={{ transitionDelay: `${idx * 30}ms` }}
-                          className="flex gap-4 items-start cursor-pointer"
-                          onClick={() => handleSelect(item)}
-                        >
-                          {/* Node */}
-                          <div className="shrink-0 relative z-10">
-                            <div
-                              className="w-9 h-9 rounded-xl flex items-center justify-center transition-all"
-                              style={{
-                                background: 'hsla(265,70%,65%,0.1)',
-                                color: 'var(--accent-violet)',
-                                boxShadow: isSelected ? '0 0 0 2px hsla(265,70%,65%,0.3)' : 'none',
-                              }}
-                            >
-                              <FileText size={14} strokeWidth={1.75} />
-                            </div>
-                          </div>
-
-                          {/* Card */}
-                          <GlassCard variant="interactive" className="flex-1 p-3.5">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
-                                  {doc.filename}
-                                </p>
-                                <div className="flex items-center gap-2 mt-1">
-                                  <Badge variant="default">{doc.category.replace(/_/g, ' ')}</Badge>
-                                  <Badge variant={
-                                    doc.analysisStatus === 'complete' ? 'success' :
-                                    doc.analysisStatus === 'failed' ? 'danger' : 'teal'
-                                  }>
-                                    {doc.analysisStatus === 'complete' ? 'Analyzed' :
-                                     doc.analysisStatus === 'failed' ? 'Failed' : 'Pending'}
-                                  </Badge>
-                                  {doc.analysis?.red_flags && doc.analysis.red_flags.length > 0 && (
-                                    <span className="text-xs flex items-center gap-1" style={{ color: 'var(--accent-coral)' }}>
-                                      <AlertTriangle size={10} strokeWidth={1.75} />
-                                      {doc.analysis.red_flags.length}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                                  {item.date && formatRelativeTime(item.date)}
-                                </span>
-                                <ChevronRight size={14} strokeWidth={1.75} style={{ color: 'var(--text-muted)' }} />
-                              </div>
-                            </div>
-                          </GlassCard>
-                        </motion.div>
-                      )
-                    })}
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        )}
-      </motion.div>
-
-      {/* Desktop detail panel */}
-      <AnimatePresence>
-        {selectedItem && (
-          <motion.div
-            key="detail-panel"
-            variants={slideFromRight}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            className="hidden lg:block w-[400px] shrink-0"
-          >
-            <div className="sticky top-6">
-              <GlassCard variant="elevated" className="p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
-                      {selectedItem.type === 'assessment' ? 'Assessment' : 'Document'}
-                    </p>
-                    <p className="text-sm font-semibold mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-                      {selectedItem.date && formatDateTime(selectedItem.date)}
-                    </p>
-                  </div>
-                  <button
-                    onClick={handleClose}
-                    className="w-8 h-8 rounded-xl flex items-center justify-center transition-colors hover:bg-[var(--surface-tint)]"
-                    style={{ color: 'var(--text-muted)' }}
-                  >
-                    <X size={16} strokeWidth={1.75} />
-                  </button>
-                </div>
-
-                {selectedItem.type === 'assessment' ? (
-                  <AssessmentDetail journey={selectedItem.data as CareJourney} onClose={handleClose} />
-                ) : (
-                  <DocumentDetail document={selectedItem.data as PatientDocument} onClose={handleClose} />
-                )}
-              </GlassCard>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Mobile bottom sheet */}
-      <BottomSheet
-        open={sheetOpen && !!selectedItem}
-        onClose={handleClose}
-        title={selectedItem?.type === 'assessment' ? 'Assessment detail' : 'Document detail'}
-      >
-        {selectedItem && (
-          <div className="pb-safe">
-            <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>
-              {selectedItem.date && formatDateTime(selectedItem.date)}
-            </p>
-            {selectedItem.type === 'assessment' ? (
-              <AssessmentDetail journey={selectedItem.data as CareJourney} onClose={handleClose} />
+        <motion.div variants={fadeRise} className="min-w-0">
+          <div className="sticky top-24">
+            {selectedItem ? (
+              selectedItem.type === 'assessment' ? (
+                <AssessmentDetail journey={selectedItem.data as CareJourney} />
+              ) : (
+                <DocumentDetail document={selectedItem.data as PatientDocument} />
+              )
             ) : (
-              <DocumentDetail document={selectedItem.data as PatientDocument} onClose={handleClose} />
+              <EmptyDetail />
             )}
           </div>
-        )}
-      </BottomSheet>
-    </div>
+        </motion.div>
+      </div>
+    </motion.div>
   )
 }

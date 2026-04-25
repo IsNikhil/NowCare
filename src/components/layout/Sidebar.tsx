@@ -110,7 +110,7 @@ export default function Sidebar({ onNavClick, iconOnly }: SidebarProps) {
                 iconOnly ? 'justify-center w-10 h-10 p-0' : 'gap-3 px-3 py-2.5',
                 isActive
                   ? 'font-semibold text-[var(--text-primary)] bg-[var(--surface-tint)] border-l-[var(--accent-teal)]'
-                  : 'font-medium text-[var(--text-secondary)] border-l-transparent hover:text-[var(--text-primary)] hover:bg-[var(--surface-tint)]',
+                  : 'font-medium text-[var(--text-primary)]/75 border-l-transparent hover:text-[var(--text-primary)] hover:bg-[var(--surface-tint)]',
               ].join(' ')
             }
           >

@@ -5,6 +5,8 @@
   --bg-base: hsl(160, 20%, 98%);
   --bg-elevated: hsl(0, 0%, 100%);
   --bg-glass: hsla(0, 0%, 100%, 0.6);
+  --bg-sidebar: hsla(0, 0%, 100%, 0.86);
+  --bg-topbar: hsla(0, 0%, 100%, 0.82);
   --surface-tint: hsl(160, 50%, 96%);
   --border-subtle: hsla(160, 20%, 70%, 0.2);
   --text-primary: hsl(180, 30%, 10%);
@@ -25,6 +27,8 @@
   --bg-base: hsl(195, 25%, 7%);
   --bg-elevated: hsl(195, 22%, 11%);
   --bg-glass: hsla(195, 25%, 12%, 0.7);
+  --bg-sidebar: hsla(195, 25%, 5%, 0.72);
+  --bg-topbar: hsla(195, 25%, 8%, 0.72);
   --surface-tint: hsl(195, 25%, 14%);
   --border-subtle: hsla(168, 60%, 60%, 0.12);
   --text-primary: hsl(160, 15%, 95%);

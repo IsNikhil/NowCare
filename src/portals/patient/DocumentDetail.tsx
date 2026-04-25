@@ -4,7 +4,7 @@ import { where } from 'firebase/firestore'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   AlertTriangle, ChevronDown, ChevronUp, Copy, Check,
-  ArrowLeft, FileText, User, Calendar, MessageSquare, Send,
+  ArrowLeft, FileText, User, Calendar, MessageSquare, Send, ExternalLink,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuth } from '../../hooks/useAuth'
@@ -255,6 +255,7 @@ export default function DocumentDetail() {
               <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text-primary)' }}>
                 {analysis?.document_type ?? document.filename}
               </h1>
+              <p className="mt-1 text-xs truncate" style={{ color: 'var(--text-muted)' }}>{document.filename}</p>
               <div className="flex flex-wrap gap-2 mt-2">
                 {analysis?.date_of_document && (
                   <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--text-muted)' }}>
@@ -270,6 +271,18 @@ export default function DocumentDetail() {
                 )}
               </div>
             </div>
+            {document.downloadUrl && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => window.open(document.downloadUrl, '_blank', 'noopener,noreferrer')}
+                className="shrink-0"
+              >
+                <ExternalLink size={14} strokeWidth={1.75} />
+                Open file
+              </Button>
+            )}
           </div>
 
           {/* Quick stats */}

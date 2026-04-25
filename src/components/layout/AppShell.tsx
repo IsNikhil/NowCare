@@ -28,7 +28,12 @@ export default function AppShell() {
         {/* Desktop persistent sidebar */}
         <aside
           className="hidden lg:flex w-64 shrink-0 flex-col h-full fixed left-0 top-0 bottom-0 z-30"
-          style={{ borderRight: '1px solid var(--border-subtle)', background: 'hsla(195,25%,5%,0.6)' }}
+          style={{
+            borderRight: '1px solid var(--border-subtle)',
+            background: 'var(--bg-sidebar)',
+            backdropFilter: 'blur(18px) saturate(150%)',
+            WebkitBackdropFilter: 'blur(18px) saturate(150%)',
+          }}
         >
           <Sidebar />
         </aside>
@@ -36,7 +41,12 @@ export default function AppShell() {
         {/* Tablet icon rail */}
         <aside
           className="hidden md:flex lg:hidden w-[72px] shrink-0 flex-col h-full fixed left-0 top-0 bottom-0 z-30"
-          style={{ borderRight: '1px solid var(--border-subtle)', background: 'hsla(195,25%,5%,0.6)' }}
+          style={{
+            borderRight: '1px solid var(--border-subtle)',
+            background: 'var(--bg-sidebar)',
+            backdropFilter: 'blur(18px) saturate(150%)',
+            WebkitBackdropFilter: 'blur(18px) saturate(150%)',
+          }}
         >
           <Sidebar iconOnly />
         </aside>

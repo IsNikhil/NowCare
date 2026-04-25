@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useDropzone } from 'react-dropzone'
 import { where, orderBy, addDoc, collection, doc, updateDoc, serverTimestamp } from 'firebase/firestore'
 import { motion } from 'framer-motion'
-import { Upload, FileText, AlertTriangle, CheckCircle, Clock, X, ChevronRight } from 'lucide-react'
+import { Upload, FileText, AlertTriangle, CheckCircle, Clock, X, ChevronRight, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import { db } from '../../services/firebase'
 import { uploadPatientDocument } from '../../services/storage'
@@ -12,7 +12,6 @@ import { useAuth } from '../../hooks/useAuth'
 import { useFirestoreCollection } from '../../hooks/useFirestoreCollection'
 import { GlassCard } from '../../components/ui/GlassCard'
 import { Badge } from '../../components/ui/Badge'
-import { Button } from '../../components/ui/Button'
 import { SkeletonList } from '../../components/ui/Skeleton'
 import { formatDate } from '../../lib/format'
 import { fadeRise, stagger } from '../../lib/motion'
@@ -118,8 +117,7 @@ export default function Documents() {
       const docId = `${Date.now()}_${Math.random().toString(36).slice(2)}`
       setUploading((prev) => ({ ...prev, [docId]: 0 }))
       try {
-        const storagePath = `users/${user.uid}/documents/${docId}/${file.name}`
-        await uploadPatientDocument(user.uid, docId, file, (pct) => {
+        const { downloadUrl, storagePath } = await uploadPatientDocument(user.uid, docId, file, (pct) => {
           setUploading((prev) => ({ ...prev, [docId]: pct }))
         })
 
@@ -129,6 +127,7 @@ export default function Documents() {
           patientId: user.uid,
           filename: file.name,
           storagePath,
+          downloadUrl,
           contentType: file.type,
           uploadedAt: serverTimestamp(),
           category,
@@ -289,6 +288,27 @@ export default function Documents() {
                     <AlertTriangle size={12} strokeWidth={1.75} />
                     {d.analysis.red_flags.length} item{d.analysis.red_flags.length > 1 ? 's' : ''} need{d.analysis.red_flags.length === 1 ? 's' : ''} attention
                   </div>
+                )}
+                {d.analysis?.summary && (
+                  <div className="mt-3 rounded-xl border px-3 py-2 text-xs leading-relaxed"
+                    style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-tint)', color: 'var(--text-secondary)' }}>
+                    <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>Report summary: </span>
+                    {d.analysis.summary}
+                  </div>
+                )}
+                {d.downloadUrl && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      window.open(d.downloadUrl, '_blank', 'noopener,noreferrer')
+                    }}
+                    className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold transition-colors hover:text-[var(--accent-teal)]"
+                    style={{ color: 'var(--text-muted)' }}
+                  >
+                    <ExternalLink size={12} strokeWidth={1.75} />
+                    Open uploaded file
+                  </button>
                 )}
               </GlassCard>
             </motion.div>

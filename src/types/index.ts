@@ -16,6 +16,11 @@ export type Patient = {
   displayName?: string
   age: number
   gender: 'male' | 'female' | 'nonbinary' | 'prefer_not_to_say'
+  photoURL?: string
+  height?: string
+  weight?: string
+  knownDiseases?: string[]
+  pastMedications?: string[]
   location?: GeoPoint
   lat?: number
   lng?: number
@@ -187,6 +192,7 @@ export type PatientDocument = {
   patientId: string
   filename: string
   storagePath: string
+  downloadUrl?: string
   contentType: string
   uploadedAt: Timestamp
   category: DocumentCategory

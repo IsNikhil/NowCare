@@ -24,7 +24,7 @@ export default function Topbar({ onMenuToggle }: { onMenuToggle?: () => void }) 
     <header
       className="h-16 flex items-center justify-between px-4 md:px-8 shrink-0 sticky top-0 z-20"
       style={{
-        background: 'hsla(195,25%,8%,0.72)',
+        background: 'var(--bg-topbar)',
         borderBottom: '1px solid var(--border-subtle)',
         backdropFilter: 'blur(20px) saturate(160%)',
         WebkitBackdropFilter: 'blur(20px) saturate(160%)',
