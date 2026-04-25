@@ -1,20 +1,19 @@
 import { useState } from 'react'
 import { where, orderBy, doc, updateDoc, serverTimestamp } from 'firebase/firestore'
+import { motion } from 'framer-motion'
+import { CheckCircle2, XCircle, ExternalLink, Building2, Clock } from 'lucide-react'
+import { toast } from 'sonner'
 import { db } from '../../services/firebase'
 import { useFirestoreCollection } from '../../hooks/useFirestoreCollection'
 import { fetchHospitalData, fetchBenchmarks } from '../../services/cms'
-import { PageHeader } from '../../components/ui/PageHeader'
-import { Card } from '../../components/ui/Card'
+import { GlassCard } from '../../components/ui/GlassCard'
 import { Button } from '../../components/ui/Button'
-import { SkeletonCard } from '../../components/ui/Skeleton'
-import { EmptyState } from '../../components/ui/EmptyState'
-import { toast } from 'sonner'
+import { SkeletonList } from '../../components/ui/Skeleton'
 import { formatDate } from '../../lib/format'
-import { CheckCircle2, XCircle, ExternalLink } from 'lucide-react'
+import { fadeRise, stagger } from '../../lib/motion'
 import type { Hospital } from '../../types'
 
 export default function HospitalQueue({ embedded = false }: { embedded?: boolean }) {
-  
   const [processing, setProcessing] = useState<string | null>(null)
 
   const { data: hospitals, loading } = useFirestoreCollection<Hospital>(
@@ -28,19 +27,12 @@ export default function HospitalQueue({ embedded = false }: { embedded?: boolean
       let cmsData = null
       let cmsBenchmarks = null
       let cmsWarning = false
-
       try {
         cmsData = await fetchHospitalData(hospital.name)
         if (cmsData) {
-          try {
-            cmsBenchmarks = await fetchBenchmarks(hospital.name)
-          } catch {
-            // ignore
-          }
+          try { cmsBenchmarks = await fetchBenchmarks(hospital.name) } catch { /* ignore */ }
         }
-      } catch {
-        cmsWarning = true
-      }
+      } catch { cmsWarning = true }
 
       await updateDoc(doc(db, 'hospitals', hospital.id), {
         status: 'approved',
@@ -48,12 +40,9 @@ export default function HospitalQueue({ embedded = false }: { embedded?: boolean
         cms_benchmarks: cmsBenchmarks ?? null,
         approvedAt: serverTimestamp(),
       })
-
-      if (cmsWarning || !cmsData) {
-        toast.success(`${hospital.name} approved. CMS data unavailable.`)
-      } else {
-        toast.success(`${hospital.name} approved. CMS data fetched.`)
-      }
+      toast.success(cmsWarning || !cmsData
+        ? `${hospital.name} approved.`
+        : `${hospital.name} approved with CMS data.`)
     } catch {
       toast.error('Could not approve hospital.')
     } finally {
@@ -73,89 +62,92 @@ export default function HospitalQueue({ embedded = false }: { embedded?: boolean
     }
   }
 
-  if (loading) {
+  if (loading) return <SkeletonList count={2} />
+
+  if (hospitals.length === 0) {
     return (
-      <div className={embedded ? '' : 'max-w-2xl mx-auto'}>
-        <SkeletonCard />
-        <SkeletonCard />
-      </div>
+      <GlassCard className="p-8 text-center">
+        <div className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3" style={{ background: 'var(--surface-tint)', color: 'var(--text-muted)' }}>
+          <Building2 size={22} strokeWidth={1.25} />
+        </div>
+        <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>No hospitals pending</p>
+        <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>New registrations will appear here for review.</p>
+      </GlassCard>
     )
   }
 
   const content = (
-    <>
-      {hospitals.length === 0 && (
-        <EmptyState
-          title="No hospitals pending approval"
-          description="When hospitals register, they will appear here for review."
-        />
-      )}
-
-      <div className="flex flex-col gap-4">
-        {hospitals.map((hospital) => (
-          <Card key={hospital.id} level={2} padding="md">
-            <div className="mb-3">
-              <h3 className="font-semibold text-ink-800">{hospital.name}</h3>
-              {hospital.email && (
-                <p className="text-xs text-slate-400 mt-0.5">{hospital.email}</p>
-              )}
-              {hospital.createdAt && (
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Submitted {formatDate(hospital.createdAt)}
-                </p>
-              )}
-              <div className="mt-1.5">
+    <motion.div variants={stagger} initial="initial" animate="animate" className="space-y-3">
+      {hospitals.map((hospital) => (
+        <motion.div key={hospital.id} variants={fadeRise}>
+          <GlassCard className="p-4">
+            <div className="flex items-start gap-3 mb-3">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'hsla(38,90%,65%,0.1)', color: 'var(--accent-amber)' }}>
+                <Clock size={15} strokeWidth={1.75} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{hospital.name}</p>
+                {hospital.email && (
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{hospital.email}</p>
+                )}
+                {hospital.createdAt && (
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                    Submitted {formatDate(hospital.createdAt)}
+                  </p>
+                )}
                 {hospital.supportingDocuments ? (
                   <a
                     href={hospital.supportingDocuments}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs text-teal-600 hover:text-teal-700 font-medium"
+                    className="inline-flex items-center gap-1 text-xs font-semibold mt-1 hover:underline"
+                    style={{ color: 'var(--accent-teal)' }}
                   >
-                    <ExternalLink size={11} strokeWidth={1.75} />
+                    <ExternalLink size={10} strokeWidth={1.75} />
                     View documents
                   </a>
                 ) : (
-                  <span className="text-xs text-slate-400">No documents provided</span>
+                  <span className="text-xs mt-1 block" style={{ color: 'var(--text-muted)' }}>No documents provided</span>
                 )}
               </div>
             </div>
-            <div className="flex gap-3">
+            <div className="flex gap-2">
               <Button
-                variant="primary"
                 size="sm"
                 loading={processing === hospital.id}
                 disabled={processing !== null}
                 onClick={() => handleApprove(hospital)}
               >
-                <CheckCircle2 size={16} strokeWidth={1.75} />
+                <CheckCircle2 size={14} strokeWidth={1.75} />
                 Approve
               </Button>
               <Button
-                variant="danger"
+                variant="secondary"
                 size="sm"
                 loading={processing === hospital.id}
                 disabled={processing !== null}
                 onClick={() => handleDeny(hospital)}
               >
-                <XCircle size={16} strokeWidth={1.75} />
+                <XCircle size={14} strokeWidth={1.75} />
                 Deny
               </Button>
             </div>
-          </Card>
-        ))}
-      </div>
-    </>
+          </GlassCard>
+        </motion.div>
+      ))}
+    </motion.div>
   )
 
   if (embedded) return content
 
   return (
     <div className="max-w-2xl mx-auto">
-      <PageHeader
-        title="Hospital queue"
-        subtitle={`${hospitals.length} hospital${hospitals.length !== 1 ? 's' : ''} pending review.`}
-      />
+      <div className="mb-6">
+        <h1 className="text-3xl font-extrabold tracking-tight mb-1" style={{ color: 'var(--text-primary)' }}>Hospital Queue</h1>
+        <p className="text-base" style={{ color: 'var(--text-secondary)' }}>
+          {hospitals.length} hospital{hospitals.length !== 1 ? 's' : ''} pending review.
+        </p>
+      </div>
       {content}
     </div>
   )

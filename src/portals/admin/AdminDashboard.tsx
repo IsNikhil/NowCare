@@ -1,169 +1,136 @@
 import { where } from 'firebase/firestore'
+import { motion } from 'framer-motion'
+import { Building2, AlertTriangle, Users, Stethoscope, Activity } from 'lucide-react'
 import { useFirestoreCollection } from '../../hooks/useFirestoreCollection'
-import { Card } from '../../components/ui/Card'
+import { GlassCard } from '../../components/ui/GlassCard'
+import { Badge } from '../../components/ui/Badge'
 import { SkeletonCard } from '../../components/ui/Skeleton'
-import { Building2, CheckSquare, Users, Stethoscope } from 'lucide-react'
 import { formatDate } from '../../lib/format'
+import { fadeRise, stagger } from '../../lib/motion'
 import HospitalQueue from './HospitalQueue'
 import type { Hospital, Doctor, Patient } from '../../types'
 
-const erStatusLabel: Record<string, string> = {
-  low: 'Low',
-  moderate: 'Moderate',
-  high: 'High',
-  closed: 'Closed',
+const ER_COLORS: Record<string, string> = {
+  low: 'var(--accent-green)',
+  moderate: 'var(--accent-amber)',
+  high: 'var(--accent-coral)',
+  closed: 'var(--text-muted)',
 }
 
 export default function AdminDashboard() {
-  const { data: pending, loading: pLoad } = useFirestoreCollection<Hospital>(
-    'hospitals', [where('status', '==', 'pending')]
-  )
-  const { data: approved, loading: aLoad } = useFirestoreCollection<Hospital>(
-    'hospitals', [where('status', '==', 'approved')]
-  )
+  const { data: pending, loading: pLoad } = useFirestoreCollection<Hospital>('hospitals', [where('status', '==', 'pending')])
+  const { data: approved, loading: aLoad } = useFirestoreCollection<Hospital>('hospitals', [where('status', '==', 'approved')])
   const { data: doctors, loading: dLoad } = useFirestoreCollection<Doctor>('doctors', [])
   const { data: patients, loading: patLoad } = useFirestoreCollection<Patient>('patients', [])
-  const { data: verifiedDoctors } = useFirestoreCollection<Doctor>(
-    'doctors', [where('verified', '==', true)]
-  )
+  const { data: verifiedDoctors } = useFirestoreCollection<Doctor>('doctors', [where('verified', '==', true)])
 
   const loading = pLoad || aLoad || dLoad || patLoad
 
-  if (loading) {
-    return (
-      <div className="max-w-3xl mx-auto grid sm:grid-cols-2 gap-4">
-        <SkeletonCard />
-        <SkeletonCard />
-        <SkeletonCard />
-        <SkeletonCard />
-      </div>
-    )
-  }
-
   const stats = [
-    {
-      label: 'Pending hospitals',
-      value: pending.length,
-      icon: <Building2 size={24} strokeWidth={1.75} className="text-amber-500" />,
-      anchor: '#pending',
-      urgent: pending.length > 0,
-    },
-    {
-      label: 'Approved hospitals',
-      value: approved.length,
-      icon: <CheckSquare size={24} strokeWidth={1.75} className="text-emerald-500" />,
-      anchor: '#approved',
-      urgent: false,
-    },
-    {
-      label: 'Doctors',
-      value: doctors.length,
-      icon: <Stethoscope size={24} strokeWidth={1.75} className="text-blue-500" />,
-      anchor: '#users',
-      urgent: false,
-    },
-    {
-      label: 'Patients',
-      value: patients.length,
-      icon: <Users size={24} strokeWidth={1.75} className="text-teal-500" />,
-      anchor: '#users',
-      urgent: false,
-    },
+    { label: 'Pending review', value: pending.length, icon: <AlertTriangle size={16} strokeWidth={1.75} />, color: 'var(--accent-amber)', urgent: pending.length > 0 },
+    { label: 'Approved hospitals', value: approved.length, icon: <Building2 size={16} strokeWidth={1.75} />, color: 'var(--accent-teal)', urgent: false },
+    { label: 'Doctors', value: doctors.length, icon: <Stethoscope size={16} strokeWidth={1.75} />, color: 'var(--accent-violet)', urgent: false },
+    { label: 'Patients', value: patients.length, icon: <Users size={16} strokeWidth={1.75} />, color: 'var(--accent-teal)', urgent: false },
   ]
 
   return (
-    <div className="max-w-3xl mx-auto">
-      <h1 className="text-2xl font-bold text-ink-800 tracking-tight mb-6">Admin</h1>
+    <motion.div variants={stagger} initial="initial" animate="animate" className="max-w-4xl mx-auto space-y-6">
+      <motion.div variants={fadeRise}>
+        <h1 className="text-3xl font-extrabold tracking-tight mb-1" style={{ color: 'var(--text-primary)' }}>Admin</h1>
+        <p className="text-base" style={{ color: 'var(--text-secondary)' }}>Hospital approvals, provider oversight, and platform stats.</p>
+      </motion.div>
 
-      <div className="grid sm:grid-cols-4 gap-3 mb-8">
-        {stats.map((s) => (
-          <a key={s.label} href={s.anchor} className="block">
-            <Card
-              level={1}
-              padding="sm"
-              className={`hover:glass-2 transition-all duration-200 cursor-pointer ${s.urgent ? 'border border-amber-300' : ''}`}
-            >
-              <div className="flex items-center justify-between">
-                {s.icon}
+      {loading ? (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[...Array(4)].map((_, i) => <SkeletonCard key={i} lines={2} />)}
+        </div>
+      ) : (
+        <motion.div variants={fadeRise} className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {stats.map((s) => (
+            <GlassCard key={s.label} className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: `${s.color}18`, color: s.color }}>
+                  {s.icon}
+                </div>
                 {s.urgent && s.value > 0 && (
-                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                  <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: s.color }} />
                 )}
               </div>
-              <p className="text-2xl font-bold text-ink-800 mt-2">{s.value}</p>
-              <p className="text-xs text-slate-500 mt-0.5">{s.label}</p>
-            </Card>
-          </a>
-        ))}
-      </div>
+              <p className="text-2xl font-extrabold font-mono" style={{ color: 'var(--text-primary)' }}>{s.value}</p>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{s.label}</p>
+            </GlassCard>
+          ))}
+        </motion.div>
+      )}
 
-      <section id="pending" className="mb-10">
-        <h2 className="text-base font-semibold text-ink-800 mb-4">Pending approval</h2>
-        <HospitalQueue embedded />
-      </section>
-
-      <section id="approved" className="mb-10">
-        <h2 className="text-base font-semibold text-ink-800 mb-4">Approved hospitals</h2>
-        {approved.length === 0 ? (
-          <p className="text-sm text-slate-400 py-2">No approved hospitals yet.</p>
-        ) : (
-          <Card level={1} padding="sm">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-xs text-slate-500 border-b border-white/30">
-                  <th className="text-left pb-2 font-semibold">Name</th>
-                  <th className="text-left pb-2 font-semibold">Approved</th>
-                  <th className="text-left pb-2 font-semibold">ER status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {approved.map((h) => (
-                  <tr key={h.id} className="border-b border-white/20 last:border-0">
-                    <td className="py-2 font-medium text-ink-800">
-                      {h.cms_data?.facility_name ?? h.name}
-                    </td>
-                    <td className="py-2 text-slate-500 text-xs">
-                      {h.approvedAt ? formatDate(h.approvedAt) : '—'}
-                    </td>
-                    <td className="py-2 text-xs">
-                      {h.er_status ? (
-                        <span className={`font-semibold ${
-                          h.er_status === 'low' ? 'text-emerald-600' :
-                          h.er_status === 'moderate' ? 'text-amber-500' :
-                          h.er_status === 'high' ? 'text-rose-500' : 'text-slate-400'
-                        }`}>
-                          {erStatusLabel[h.er_status]}
-                        </span>
-                      ) : (
-                        <span className="text-slate-400">—</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Card>
-        )}
-      </section>
-
-      <section id="users" className="mb-6">
-        <h2 className="text-base font-semibold text-ink-800 mb-4">Registered users</h2>
-        <div className="grid sm:grid-cols-3 gap-3">
-          <Card level={1} padding="sm">
-            <p className="text-xs text-slate-500 mb-1">Patients</p>
-            <p className="text-2xl font-bold text-ink-800">{patients.length}</p>
-          </Card>
-          <Card level={1} padding="sm">
-            <p className="text-xs text-slate-500 mb-1">Doctors</p>
-            <p className="text-2xl font-bold text-ink-800">{doctors.length}</p>
-            <p className="text-xs text-slate-400 mt-0.5">{verifiedDoctors.length} NPI verified</p>
-          </Card>
-          <Card level={1} padding="sm">
-            <p className="text-xs text-slate-500 mb-1">Hospitals</p>
-            <p className="text-2xl font-bold text-ink-800">{approved.length + pending.length}</p>
-            <p className="text-xs text-slate-400 mt-0.5">{pending.length} pending review</p>
-          </Card>
+      <motion.div variants={fadeRise}>
+        <div className="flex items-center gap-2 mb-3">
+          <AlertTriangle size={15} strokeWidth={1.75} style={{ color: 'var(--accent-amber)' }} />
+          <h2 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Pending Approval</h2>
+          {pending.length > 0 && <Badge variant="warning">{pending.length}</Badge>}
         </div>
-      </section>
-    </div>
+        <HospitalQueue embedded />
+      </motion.div>
+
+      {approved.length > 0 && (
+        <motion.div variants={fadeRise}>
+          <div className="flex items-center gap-2 mb-3">
+            <Activity size={15} strokeWidth={1.75} style={{ color: 'var(--accent-teal)' }} />
+            <h2 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Live Hospitals</h2>
+            <Badge variant="teal">{approved.length}</Badge>
+          </div>
+          <GlassCard>
+            <div className="divide-y" style={{ ['--tw-divide-opacity' as string]: 1 }}>
+              {approved.map((h) => (
+                <div key={h.id} className="flex items-center gap-3 px-4 py-3">
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--surface-tint)', color: 'var(--text-secondary)' }}>
+                    <Building2 size={14} strokeWidth={1.75} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
+                      {h.cms_data?.facility_name ?? h.name}
+                    </p>
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                      {h.cms_data?.city ? `${h.cms_data.city}, ${h.cms_data.state}` : ''}
+                      {h.approvedAt ? ` · Approved ${formatDate(h.approvedAt)}` : ''}
+                    </p>
+                  </div>
+                  {h.er_status && (
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: ER_COLORS[h.er_status] ?? 'var(--text-muted)' }} />
+                      <span className="text-xs font-semibold capitalize" style={{ color: ER_COLORS[h.er_status] ?? 'var(--text-muted)' }}>
+                        {h.er_status}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </GlassCard>
+        </motion.div>
+      )}
+
+      <motion.div variants={fadeRise}>
+        <h2 className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>Provider Overview</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <GlassCard className="p-4">
+            <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Patients</p>
+            <p className="text-2xl font-extrabold font-mono" style={{ color: 'var(--text-primary)' }}>{patients.length}</p>
+          </GlassCard>
+          <GlassCard className="p-4">
+            <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Doctors</p>
+            <p className="text-2xl font-extrabold font-mono" style={{ color: 'var(--text-primary)' }}>{doctors.length}</p>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--accent-teal)' }}>{verifiedDoctors.length} NPI verified</p>
+          </GlassCard>
+          <GlassCard className="p-4">
+            <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Total hospitals</p>
+            <p className="text-2xl font-extrabold font-mono" style={{ color: 'var(--text-primary)' }}>{approved.length + pending.length}</p>
+            {pending.length > 0 && (
+              <p className="text-xs mt-0.5" style={{ color: 'var(--accent-amber)' }}>{pending.length} awaiting review</p>
+            )}
+          </GlassCard>
+        </div>
+      </motion.div>
+    </motion.div>
   )
 }

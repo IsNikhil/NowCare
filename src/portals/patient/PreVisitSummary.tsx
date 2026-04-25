@@ -1,84 +1,56 @@
 import { useEffect, useRef, useState } from 'react'
-import { useLocation, Link } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { doc, updateDoc } from 'firebase/firestore'
+import { motion } from 'framer-motion'
+import { Printer, Share2, Loader2, FileText } from 'lucide-react'
+import { toast } from 'sonner'
 import { db } from '../../services/firebase'
 import { summary as generateSummary } from '../../services/gemini'
 import { useAuth } from '../../hooks/useAuth'
 import { useFirestoreDoc } from '../../hooks/useFirestoreDoc'
-import { Card } from '../../components/ui/Card'
+import { GlassCard } from '../../components/ui/GlassCard'
 import { Button } from '../../components/ui/Button'
-import { LoadingSpinner } from '../../components/ui/LoadingSpinner'
-import { toast } from 'sonner'
-import { Printer, Share2 } from 'lucide-react'
+import { fadeRise, stagger } from '../../lib/motion'
 import type { Patient, CareJourney } from '../../types'
-
-type LocationState = {
-  journeyId?: string
-}
 
 export default function PreVisitSummary() {
   const { user } = useAuth()
   const location = useLocation()
-  
-  const state = location.state as LocationState | null
-  const journeyId = state?.journeyId
+  const navigate = useNavigate()
+  const journeyId = (location.state as { journeyId?: string } | null)?.journeyId
 
   const [generatedSummary, setGeneratedSummary] = useState<string | null>(null)
-  const [generatingSummary, setGeneratingSummary] = useState(false)
-  const generationStarted = useRef(false)
+  const [generating, setGenerating] = useState(false)
+  const started = useRef(false)
 
-  const { data: patient } = useFirestoreDoc<Patient>(
-    user ? `patients/${user.uid}` : ''
-  )
-
-  const { data: journey } = useFirestoreDoc<CareJourney>(
-    journeyId ? `care_journeys/${journeyId}` : ''
-  )
+  const { data: patient } = useFirestoreDoc<Patient>(user ? `patients/${user.uid}` : '')
+  const { data: journey } = useFirestoreDoc<CareJourney>(journeyId ? `care_journeys/${journeyId}` : '')
 
   const summaryText = journey?.pre_visit_summary ?? generatedSummary
 
   useEffect(() => {
-    if (!journey || !patient) return
-    if (journey.pre_visit_summary || generationStarted.current) return
+    if (!journey || !patient || journey.pre_visit_summary || started.current) return
     if (!journey.symptoms || !journey.triage_result) return
-
-    generationStarted.current = true
+    started.current = true
     let cancelled = false
-
-    Promise.resolve()
-      .then(() => {
-        if (!cancelled) setGeneratingSummary(true)
-        return generateSummary(journey.symptoms!, journey.triage_result!, {
-          age: patient.age,
-          gender: patient.gender,
-        })
-      })
+    setGenerating(true)
+    generateSummary(journey.symptoms, journey.triage_result, { age: (patient as any).age, gender: (patient as any).gender })
       .then(async (text) => {
         if (cancelled) return
         setGeneratedSummary(text)
         if (journeyId) {
-          try {
-            await updateDoc(doc(db, 'care_journeys', journeyId), {
-              pre_visit_summary: text,
-            })
-          } catch {
-            // ignore
-          }
+          await updateDoc(doc(db, 'care_journeys', journeyId), { pre_visit_summary: text }).catch(() => {})
         }
       })
       .catch(() => { if (!cancelled) setGeneratedSummary('Summary could not be generated.') })
-      .finally(() => { if (!cancelled) setGeneratingSummary(false) })
-
+      .finally(() => { if (!cancelled) setGenerating(false) })
     return () => { cancelled = true }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [journey?.id, patient?.uid])
 
   async function handleShare() {
     const text = summaryText ?? ''
     if (navigator.share) {
-      try {
-        await navigator.share({ title: 'NowCare Visit Summary', text })
-      } catch { /* user cancelled */ }
+      await navigator.share({ title: 'NowCare Visit Summary', text }).catch(() => {})
     } else {
       await navigator.clipboard.writeText(text)
       toast.success('Summary copied to clipboard')
@@ -86,62 +58,66 @@ export default function PreVisitSummary() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-ink-800 tracking-tight">Your visit summary</h1>
-          <p className="text-slate-500 mt-1 text-sm">Show this to your provider when you arrive.</p>
-        </div>
-        {summaryText && (
-          <div className="flex gap-2 shrink-0">
-            <Button variant="secondary" size="sm" onClick={() => window.print()}>
-              <Printer size={15} strokeWidth={1.75} />
-              Print
-            </Button>
-            <Button variant="secondary" size="sm" onClick={handleShare}>
-              <Share2 size={15} strokeWidth={1.75} />
-              Share
-            </Button>
+    <motion.div variants={stagger} initial="initial" animate="animate" className="max-w-2xl mx-auto space-y-6">
+      <motion.div variants={fadeRise}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-3xl font-extrabold tracking-tight mb-1" style={{ color: 'var(--text-primary)' }}>Visit Summary</h1>
+            <p className="text-base" style={{ color: 'var(--text-secondary)' }}>Show this to your provider when you arrive.</p>
           </div>
-        )}
-      </div>
-
-      {generatingSummary && (
-        <Card level={2} padding="lg" className="flex flex-col items-center gap-4 py-12">
-          <LoadingSpinner size="lg" className="text-teal-500" />
-          <p className="text-sm text-slate-500 text-center">
-            Generating your visit summary...
-          </p>
-        </Card>
-      )}
-
-      {!generatingSummary && summaryText && (
-        <Card level={2} padding="lg" className="print:shadow-none print:border-0">
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Symptoms</h2>
-              <div>
-                {summaryText.split('\n').map((line: string, i: number) =>
-                  line.trim() ? (
-                    <p key={i} className="text-slate-700 leading-relaxed mb-2 last:mb-0">
-                      {line}
-                    </p>
-                  ) : null
-                )}
-              </div>
+          {summaryText && !generating && (
+            <div className="flex gap-2 shrink-0">
+              <Button variant="secondary" size="sm" onClick={() => window.print()}>
+                <Printer size={14} strokeWidth={1.75} /> Print
+              </Button>
+              <Button variant="secondary" size="sm" onClick={handleShare}>
+                <Share2 size={14} strokeWidth={1.75} /> Share
+              </Button>
             </div>
-          </div>
-        </Card>
+          )}
+        </div>
+      </motion.div>
+
+      {generating && (
+        <motion.div variants={fadeRise}>
+          <GlassCard className="p-12 flex flex-col items-center gap-4">
+            <Loader2 size={32} strokeWidth={1.5} className="animate-spin" style={{ color: 'var(--accent-teal)' }} />
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Generating your visit summary...</p>
+          </GlassCard>
+        </motion.div>
       )}
 
-      {!generatingSummary && !summaryText && (
-        <Card level={2} padding="lg" className="text-center py-12">
-          <p className="text-slate-500 mb-4">No summary available.</p>
-          <Link to="/patient/symptoms">
-            <Button>Start a new assessment</Button>
-          </Link>
-        </Card>
+      {!generating && summaryText && (
+        <motion.div variants={fadeRise}>
+          <GlassCard variant="elevated" className="p-6 print:shadow-none">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: 'var(--accent-teal-glow)', color: 'var(--accent-teal)' }}>
+                <FileText size={15} strokeWidth={1.75} />
+              </div>
+              <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>AI-generated pre-visit brief</p>
+            </div>
+            <div className="space-y-2">
+              {summaryText.split('\n').map((line, i) =>
+                line.trim() ? (
+                  <p key={i} className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{line}</p>
+                ) : null
+              )}
+            </div>
+            <p className="text-xs mt-4 pt-3" style={{ borderTop: '1px solid var(--border-subtle)', color: 'var(--text-muted)' }}>
+              This summary is AI-generated and for informational purposes only. Not a substitute for professional medical advice.
+            </p>
+          </GlassCard>
+        </motion.div>
       )}
-    </div>
+
+      {!generating && !summaryText && (
+        <motion.div variants={fadeRise}>
+          <GlassCard className="p-10 text-center">
+            <p className="text-sm mb-4" style={{ color: 'var(--text-muted)' }}>No summary available. Complete an assessment first.</p>
+            <Button size="sm" onClick={() => navigate('/patient/assess')}>Start assessment</Button>
+          </GlassCard>
+        </motion.div>
+      )}
+    </motion.div>
   )
 }

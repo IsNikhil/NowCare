@@ -34,8 +34,7 @@ const patientNav: NavItem[] = [
 const doctorNav: NavItem[] = [
   { to: '/doctor', label: 'Dashboard', icon: <LayoutDashboard size={20} strokeWidth={1.75} />, exact: true },
   { to: '/doctor/availability', label: 'Availability', icon: <Calendar size={20} strokeWidth={1.75} /> },
-  { to: '/doctor/patients', label: 'Patients', icon: <Users size={20} strokeWidth={1.75} /> },
-  { to: '/doctor/settings', label: 'Settings', icon: <Settings size={20} strokeWidth={1.75} /> },
+  { to: '/doctor/verify', label: 'Verification', icon: <CheckSquare size={20} strokeWidth={1.75} /> },
 ]
 
 const hospitalNav: NavItem[] = [

@@ -1,17 +1,17 @@
 import { useState, useMemo } from 'react'
 import { collection, addDoc, deleteDoc, doc, Timestamp, where, orderBy } from 'firebase/firestore'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Plus, Trash2, CalendarDays, Clock } from 'lucide-react'
+import { toast } from 'sonner'
 import { db } from '../../services/firebase'
 import { useAuth } from '../../hooks/useAuth'
 import { useFirestoreCollection } from '../../hooks/useFirestoreCollection'
-import { PageHeader } from '../../components/ui/PageHeader'
-import { Card } from '../../components/ui/Card'
+import { GlassCard } from '../../components/ui/GlassCard'
+import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
-import { Input } from '../../components/ui/Input'
-import { Select } from '../../components/ui/Select'
-import { Modal } from '../../components/ui/Modal'
-import { SkeletonCard } from '../../components/ui/Skeleton'
-import { toast } from 'sonner'
+import { SkeletonList } from '../../components/ui/Skeleton'
 import { formatDate, formatTime } from '../../lib/format'
+import { fadeRise, stagger, scaleIn } from '../../lib/motion'
 import type { DoctorSlot } from '../../types'
 
 const TIME_OPTIONS = (() => {
@@ -21,100 +21,69 @@ const TIME_OPTIONS = (() => {
       if (h === 20 && m === 30) break
       const hh = String(h).padStart(2, '0')
       const mm = String(m).padStart(2, '0')
-      const label = new Date(2000, 0, 1, h, m).toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true,
+      opts.push({
+        value: `${hh}:${mm}`,
+        label: new Date(2000, 0, 1, h, m).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
       })
-      opts.push({ value: `${hh}:${mm}`, label })
     }
   }
   return opts
 })()
 
-const DURATION_OPTIONS = [
-  { value: '15', label: '15 min' },
-  { value: '30', label: '30 min' },
-  { value: '45', label: '45 min' },
-  { value: '60', label: '60 min' },
-]
-
-const REPEAT_OPTIONS = [
-  { value: 'none', label: 'None' },
-  { value: 'daily', label: 'Daily' },
-  { value: 'weekly', label: 'Weekly' },
-]
-
-function generateSlotDates(
-  baseDate: string,
-  startTime: string,
-  endTime: string,
-  durationMin: number,
-  repeat: string,
-  repeatCount: number
-): Date[] {
+function generateSlotDates(baseDate: string, startTime: string, endTime: string, durationMin: number, repeat: string, repeatCount: number): Date[] {
   const allDates: Date[] = []
-
   for (let i = 0; i < (repeat === 'none' ? 1 : repeatCount); i++) {
     const base = new Date(baseDate + 'T00:00:00')
     if (repeat === 'daily') base.setDate(base.getDate() + i)
     if (repeat === 'weekly') base.setDate(base.getDate() + i * 7)
-
     const [sh, sm] = startTime.split(':').map(Number)
     const [eh, em] = endTime.split(':').map(Number)
-    const start = new Date(base)
-    start.setHours(sh, sm, 0, 0)
-    const end = new Date(base)
-    end.setHours(eh, em, 0, 0)
-
+    const start = new Date(base); start.setHours(sh, sm, 0, 0)
+    const end = new Date(base); end.setHours(eh, em, 0, 0)
     let cur = new Date(start)
     while (cur.getTime() + durationMin * 60000 <= end.getTime()) {
       allDates.push(new Date(cur))
       cur = new Date(cur.getTime() + durationMin * 60000)
     }
   }
-
   return allDates
 }
 
-function slotPreview(
-  date: string,
-  startTime: string,
-  endTime: string,
-  durationMin: number,
-  repeat: string,
-  repeatCount: number
-): string {
+function slotPreview(date: string, startTime: string, endTime: string, durationMin: number, repeat: string, repeatCount: number): string {
   if (!date || !startTime || !endTime || startTime >= endTime) return ''
-
   const perDay = generateSlotDates(date, startTime, endTime, durationMin, 'none', 1).length
   if (perDay === 0) return ''
-
-  const dayLabel = new Date(date + 'T00:00:00').toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-  })
-
-  if (repeat === 'none') {
-    return `Will add ${perDay} slot${perDay !== 1 ? 's' : ''} on ${dayLabel}.`
-  }
+  const dayLabel = new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
+  if (repeat === 'none') return `${perDay} slot${perDay !== 1 ? 's' : ''} on ${dayLabel}`
   const total = perDay * repeatCount
   const unit = repeat === 'daily' ? 'day' : 'week'
-  return `Will add ${total} slots over ${repeatCount} ${unit}${repeatCount !== 1 ? 's' : ''} (${perDay} per ${unit}).`
+  return `${total} slots over ${repeatCount} ${unit}${repeatCount !== 1 ? 's' : ''} (${perDay}/day)`
+}
+
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>{children}</label>
+}
+
+function NativeSelect({ value, onChange, children }: { value: string; onChange: (v: string) => void; children: React.ReactNode }) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-full h-10 px-3 rounded-xl text-sm outline-none border transition-all"
+      style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+    >
+      {children}
+    </select>
+  )
 }
 
 export default function AvailabilityManager() {
   const { user } = useAuth()
-  
-
   const now = useMemo(() => new Date(), [])
 
   const { data: slots, loading } = useFirestoreCollection<DoctorSlot>(
     'doctor_slots',
-    user
-      ? [where('doctorId', '==', user.uid), where('datetime', '>=', Timestamp.fromDate(now)), orderBy('datetime', 'asc')]
-      : []
+    user ? [where('doctorId', '==', user.uid), where('datetime', '>=', Timestamp.fromDate(now)), orderBy('datetime', 'asc')] : []
   )
 
   const [date, setDate] = useState('')
@@ -124,7 +93,7 @@ export default function AvailabilityManager() {
   const [repeat, setRepeat] = useState('none')
   const [repeatCount, setRepeatCount] = useState(1)
   const [submitting, setSubmitting] = useState(false)
-  const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const preview = slotPreview(date, startTime, endTime, Number(duration), repeat, repeatCount)
 
@@ -133,210 +102,174 @@ export default function AvailabilityManager() {
     setSubmitting(true)
     try {
       const dates = generateSlotDates(date, startTime, endTime, Number(duration), repeat, repeatCount)
-      if (dates.length === 0) {
-        toast.error('No slots generated. Check your start and end times.')
-        return
-      }
-      await Promise.all(
-        dates.map((d) =>
-          addDoc(collection(db, 'doctor_slots'), {
-            doctorId: user.uid,
-            datetime: Timestamp.fromDate(d),
-            available: true,
-            status: 'open',
-            durationMinutes: Number(duration),
-          })
-        )
-      )
+      if (dates.length === 0) { toast.error('No slots generated. Check times.'); return }
+      await Promise.all(dates.map((d) => addDoc(collection(db, 'doctor_slots'), {
+        doctorId: user.uid,
+        datetime: Timestamp.fromDate(d),
+        available: true,
+        status: 'open',
+        durationMinutes: Number(duration),
+      })))
       toast.success(`Added ${dates.length} slot${dates.length !== 1 ? 's' : ''}.`)
-      setDate('')
-      setStartTime('09:00')
-      setEndTime('17:00')
-      setDuration('30')
-      setRepeat('none')
-      setRepeatCount(1)
-    } catch {
-      toast.error('Could not add slots.')
-    } finally {
-      setSubmitting(false)
-    }
+      setDate(''); setStartTime('09:00'); setEndTime('17:00'); setDuration('30'); setRepeat('none'); setRepeatCount(1)
+    } catch { toast.error('Could not add slots.') }
+    finally { setSubmitting(false) }
   }
 
   async function handleDelete(id: string) {
+    setDeletingId(id)
     try {
       await deleteDoc(doc(db, 'doctor_slots', id))
       toast.success('Slot removed.')
-      setDeleteId(null)
-    } catch {
-      toast.error('Could not remove slot.')
-    }
+    } catch { toast.error('Could not remove slot.') }
+    finally { setDeletingId(null) }
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <PageHeader title="Availability" subtitle="Manage your appointment slots." />
+    <motion.div variants={stagger} initial="initial" animate="animate" className="max-w-4xl mx-auto space-y-6">
+      <motion.div variants={fadeRise}>
+        <h1 className="text-3xl font-extrabold tracking-tight mb-1" style={{ color: 'var(--text-primary)' }}>Availability</h1>
+        <p className="text-base" style={{ color: 'var(--text-secondary)' }}>Add appointment slots for patients to book.</p>
+      </motion.div>
 
-      <div className="grid md:grid-cols-2 gap-6">
-        <Card level={2} padding="sm">
-          <h2 className="text-base font-semibold text-ink-800 mb-4">Add availability</h2>
-
-          <div className="flex flex-col gap-3">
-            <div className="w-3/5">
-              <Input
-                label="Date"
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                min={new Date().toISOString().split('T')[0]}
-              />
+      <div className="grid md:grid-cols-2 gap-4">
+        {/* Add form */}
+        <motion.div variants={fadeRise}>
+          <GlassCard variant="elevated" className="p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--accent-teal-glow)', color: 'var(--accent-teal)' }}>
+                <Plus size={14} strokeWidth={2} />
+              </div>
+              <h2 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Add availability</h2>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <Select
-                label="Start time"
-                options={TIME_OPTIONS}
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-              />
-              <Select
-                label="End time"
-                options={TIME_OPTIONS.filter((o) => o.value > startTime)}
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-              />
-            </div>
+            <div className="space-y-3">
+              <div>
+                <FieldLabel>Date</FieldLabel>
+                <input
+                  type="date"
+                  value={date}
+                  min={new Date().toISOString().split('T')[0]}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="w-full h-10 px-3 rounded-xl text-sm outline-none border transition-all"
+                  style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+                />
+              </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <Select
-                label="Appointment duration"
-                options={DURATION_OPTIONS}
-                value={duration}
-                onChange={(e) => setDuration(e.target.value)}
-              />
-              <Select
-                label="Repeat"
-                options={REPEAT_OPTIONS}
-                value={repeat}
-                onChange={(e) => {
-                  setRepeat(e.target.value)
-                  setRepeatCount(1)
-                }}
-              />
-            </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <FieldLabel>Start time</FieldLabel>
+                  <NativeSelect value={startTime} onChange={setStartTime}>
+                    {TIME_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </NativeSelect>
+                </div>
+                <div>
+                  <FieldLabel>End time</FieldLabel>
+                  <NativeSelect value={endTime} onChange={setEndTime}>
+                    {TIME_OPTIONS.filter((o) => o.value > startTime).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </NativeSelect>
+                </div>
+              </div>
 
-            {repeat === 'daily' && (
-              <Input
-                label="For how many days?"
-                type="number"
-                value={String(repeatCount)}
-                onChange={(e) => setRepeatCount(Math.min(14, Math.max(1, Number(e.target.value))))}
-                min={1}
-                max={14}
-              />
-            )}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <FieldLabel>Duration</FieldLabel>
+                  <NativeSelect value={duration} onChange={setDuration}>
+                    {[['15','15 min'],['30','30 min'],['45','45 min'],['60','60 min']].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+                  </NativeSelect>
+                </div>
+                <div>
+                  <FieldLabel>Repeat</FieldLabel>
+                  <NativeSelect value={repeat} onChange={(v) => { setRepeat(v); setRepeatCount(1) }}>
+                    <option value="none">No repeat</option>
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                  </NativeSelect>
+                </div>
+              </div>
 
-            {repeat === 'weekly' && (
-              <Input
-                label="For how many weeks?"
-                type="number"
-                value={String(repeatCount)}
-                onChange={(e) => setRepeatCount(Math.min(8, Math.max(1, Number(e.target.value))))}
-                min={1}
-                max={8}
-              />
-            )}
+              {(repeat === 'daily' || repeat === 'weekly') && (
+                <div>
+                  <FieldLabel>Repeat for how many {repeat === 'daily' ? 'days' : 'weeks'}?</FieldLabel>
+                  <input
+                    type="number"
+                    value={repeatCount}
+                    min={1}
+                    max={repeat === 'daily' ? 14 : 8}
+                    onChange={(e) => setRepeatCount(Math.min(repeat === 'daily' ? 14 : 8, Math.max(1, Number(e.target.value))))}
+                    className="w-full h-10 px-3 rounded-xl text-sm outline-none border transition-all"
+                    style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+                  />
+                </div>
+              )}
 
-            {preview && (
-              <p className="text-xs text-slate-500">{preview}</p>
-            )}
+              {preview && (
+                <div className="rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: 'var(--accent-teal-glow)', color: 'var(--accent-teal)' }}>
+                  {preview}
+                </div>
+              )}
 
-            <div className="flex justify-end">
-              <Button
-                onClick={handleSubmit}
-                loading={submitting}
-                disabled={submitting || !date || !preview}
-              >
+              <Button className="w-full" onClick={handleSubmit} loading={submitting} disabled={submitting || !date || !preview}>
+                <CalendarDays size={14} strokeWidth={1.75} />
                 Add slots
               </Button>
             </div>
-          </div>
-        </Card>
+          </GlassCard>
+        </motion.div>
 
-        <Card level={1} padding="sm">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-semibold text-ink-800">Upcoming slots</h2>
-            {!loading && (
-              <span className="text-xs text-slate-500">{slots.length} upcoming</span>
-            )}
-          </div>
-
-          {loading && <SkeletonCard />}
-
-          {!loading && slots.length === 0 && (
-            <p className="text-sm text-slate-400 py-2">No upcoming slots. Add availability on the left.</p>
-          )}
-
-          {!loading && slots.length > 0 && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-xs text-slate-500 border-b border-white/30">
-                    <th className="text-left pb-2 font-semibold">Date</th>
-                    <th className="text-left pb-2 font-semibold">Time</th>
-                    <th className="text-left pb-2 font-semibold">Min</th>
-                    <th className="text-left pb-2 font-semibold">Status</th>
-                    <th className="pb-2" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {slots.map((slot) => {
-                    const isOpen = slot.available !== false && slot.status !== 'reserved'
-                    return (
-                      <tr key={slot.id} className="border-b border-white/20 last:border-0">
-                        <td className="py-2 text-ink-800">{formatDate(slot.datetime)}</td>
-                        <td className="py-2 text-slate-500">{formatTime(slot.datetime)}</td>
-                        <td className="py-2 text-slate-500">{slot.durationMinutes ?? '-'}</td>
-                        <td className="py-2">
-                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${isOpen ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-500'}`}>
-                            {isOpen ? 'Open' : 'Reserved'}
-                          </span>
-                        </td>
-                        <td className="py-2 text-right">
-                          {isOpen && (
-                            <button
-                              onClick={() => setDeleteId(slot.id)}
-                              className="text-xs text-slate-400 hover:text-rose-500 transition-colors"
-                            >
-                              Remove
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+        {/* Slots list */}
+        <motion.div variants={fadeRise}>
+          <GlassCard className="p-4">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--surface-tint)', color: 'var(--text-secondary)' }}>
+                  <Clock size={14} strokeWidth={1.75} />
+                </div>
+                <h2 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Upcoming slots</h2>
+              </div>
+              {!loading && <span className="text-xs font-mono" style={{ color: 'var(--text-muted)' }}>{slots.length}</span>}
             </div>
-          )}
-        </Card>
-      </div>
 
-      <Modal
-        open={deleteId !== null}
-        onClose={() => setDeleteId(null)}
-        title="Remove slot"
-        maxWidth="sm"
-      >
-        <p className="text-sm text-slate-600 mb-6">
-          Are you sure you want to remove this slot? This cannot be undone.
-        </p>
-        <div className="flex gap-3">
-          <Button variant="ghost" onClick={() => setDeleteId(null)} fullWidth>Cancel</Button>
-          <Button variant="danger" onClick={() => deleteId && handleDelete(deleteId)} fullWidth>
-            Remove
-          </Button>
-        </div>
-      </Modal>
-    </div>
+            {loading && <SkeletonList count={4} />}
+
+            {!loading && slots.length === 0 && (
+              <div className="py-8 text-center">
+                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No upcoming slots. Add availability above.</p>
+              </div>
+            )}
+
+            {!loading && slots.length > 0 && (
+              <div className="space-y-1.5 max-h-[420px] overflow-y-auto pr-1">
+                {slots.map((slot) => {
+                  const isOpen = slot.available !== false && slot.status !== 'reserved'
+                  return (
+                    <div key={slot.id} className="flex items-center gap-3 p-2.5 rounded-xl transition-colors" style={{ background: 'var(--surface-tint)' }}>
+                      <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: isOpen ? 'var(--accent-teal)' : 'var(--accent-violet)' }} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
+                          {formatDate(slot.datetime)} · {formatTime(slot.datetime)}
+                        </p>
+                        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{slot.durationMinutes ?? 30} min</p>
+                      </div>
+                      <Badge variant={isOpen ? 'teal' : 'default'}>{isOpen ? 'Open' : 'Booked'}</Badge>
+                      {isOpen && (
+                        <button
+                          onClick={() => handleDelete(slot.id!)}
+                          disabled={deletingId === slot.id}
+                          className="w-6 h-6 rounded-lg flex items-center justify-center transition-colors hover:bg-[var(--accent-coral)]/10 shrink-0"
+                          style={{ color: 'var(--text-muted)' }}
+                        >
+                          <Trash2 size={11} strokeWidth={1.75} />
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </GlassCard>
+        </motion.div>
+      </div>
+    </motion.div>
   )
 }
