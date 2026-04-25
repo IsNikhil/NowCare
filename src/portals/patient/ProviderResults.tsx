@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useRef, useState, useMemo } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { where, orderBy, doc, setDoc, updateDoc, addDoc, collection, serverTimestamp, Timestamp } from 'firebase/firestore'
 import { motion } from 'framer-motion'
@@ -122,7 +122,7 @@ function BookingSheet({ doctor, patientId, open, onClose }: {
 
 // ─── Hospital card ────────────────────────────────────────────────────────────
 
-function HospitalCard({ h }: { h: WithId<Hospital> }) {
+function HospitalCard({ h, onFocusMap }: { h: WithId<Hospital>; onFocusMap: () => void }) {
   const name = h.cms_data?.facility_name ?? h.name
   const address = h.cms_data?.address
     ? `${h.cms_data.address}, ${h.cms_data.city ?? ''}, ${h.cms_data.state ?? ''}`
@@ -189,6 +189,12 @@ function HospitalCard({ h }: { h: WithId<Hospital> }) {
       )}
 
       <div className="flex gap-2 mt-2 flex-wrap">
+        {h.lat && h.lng && (
+          <Button variant="secondary" size="sm" onClick={onFocusMap}>
+            <MapPin size={13} strokeWidth={1.75} />
+            Show on map
+          </Button>
+        )}
         {phone && (
           <Button variant="secondary" size="sm" as="a" href={`tel:${phone}`}>
             <Phone size={13} strokeWidth={1.75} />
@@ -286,6 +292,9 @@ export default function ProviderResultsPage() {
   const [bookingDoctor, setBookingDoctor] = useState<WithId<Doctor> | null>(null)
   const [locating, setLocating] = useState(false)
   const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number } | null>(null)
+  const [focusedMarkerId, setFocusedMarkerId] = useState<string | null>(null)
+  const hospitalsSectionRef = useRef<HTMLDivElement | null>(null)
+  const doctorsSectionRef = useRef<HTMLDivElement | null>(null)
 
   const { data: patient } = useFirestoreDoc<Patient>(user ? `patients/${user.uid}` : '')
   const { data: allHospitals, loading: hospLoading } = useFirestoreCollection<Hospital>('hospitals', [where('status', '==', 'approved')])
@@ -377,8 +386,12 @@ export default function ProviderResultsPage() {
       lng: h.lng!,
       label: h.cms_data?.facility_name ?? h.name,
       type: 'verified' as const,
+      address: h.cms_data?.address
+        ? `${h.cms_data.address}, ${h.cms_data.city ?? ''}, ${h.cms_data.state ?? ''}`
+        : h.address,
+      phone: h.cms_data?.phone_number ?? h.phone,
     })),
-    ...allDoctors.filter((d) => d.lat && d.lng).map((d) => ({
+    ...filteredDoctors.filter((d) => d.lat && d.lng).map((d) => ({
       id: d.id,
       lat: d.lat!,
       lng: d.lng!,
@@ -393,6 +406,24 @@ export default function ProviderResultsPage() {
     if (s) params.set('specialty', s)
     else params.delete('specialty')
     setSearchParams(params, { replace: true })
+  }
+
+  function scrollToSection(section: 'hospitals' | 'doctors') {
+    setActiveTab('list')
+    const ref = section === 'hospitals' ? hospitalsSectionRef : doctorsSectionRef
+    window.setTimeout(() => {
+      ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 50)
+  }
+
+  function focusHospitalOnMap(hospital: WithId<Hospital>) {
+    if (!hospital.lat || !hospital.lng) {
+      toast.error('This hospital does not have map coordinates yet.')
+      return
+    }
+    setFocusedMarkerId(hospital.id)
+    setMapCenter({ lat: hospital.lat, lng: hospital.lng })
+    setActiveTab('map')
   }
 
   const topSpecialties = SPECIALTIES.slice(0, 10)
@@ -434,6 +465,49 @@ export default function ProviderResultsPage() {
             </Badge>
           )}
         </div>
+      </motion.div>
+
+      <motion.div variants={fadeRise} className="mb-4 grid gap-3 sm:grid-cols-2">
+        <button
+          type="button"
+          onClick={() => scrollToSection('hospitals')}
+          className="rounded-2xl border p-4 text-left transition-all hover:-translate-y-0.5"
+          style={{
+            borderColor: 'color-mix(in oklch, var(--accent-teal) 42%, var(--border-subtle))',
+            background: 'linear-gradient(135deg, color-mix(in oklch, var(--accent-teal) 12%, var(--bg-glass)), var(--bg-glass))',
+            boxShadow: 'var(--shadow-card)',
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: 'var(--accent-teal-glow)', color: 'var(--accent-teal)' }}>
+              <Building2 size={18} strokeWidth={1.75} />
+            </span>
+            <span>
+              <span className="block text-sm font-extrabold" style={{ color: 'var(--text-primary)' }}>Hospitals</span>
+              <span className="block text-xs" style={{ color: 'var(--text-muted)' }}>{hospitals.length} nearby options</span>
+            </span>
+          </div>
+        </button>
+        <button
+          type="button"
+          onClick={() => scrollToSection('doctors')}
+          className="rounded-2xl border p-4 text-left transition-all hover:-translate-y-0.5"
+          style={{
+            borderColor: 'color-mix(in oklch, var(--accent-violet) 42%, var(--border-subtle))',
+            background: 'linear-gradient(135deg, color-mix(in oklch, var(--accent-violet) 12%, var(--bg-glass)), var(--bg-glass))',
+            boxShadow: 'var(--shadow-card)',
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: 'hsla(265,70%,65%,0.12)', color: 'var(--accent-violet)' }}>
+              <Stethoscope size={18} strokeWidth={1.75} />
+            </span>
+            <span>
+              <span className="block text-sm font-extrabold" style={{ color: 'var(--text-primary)' }}>Doctors</span>
+              <span className="block text-xs" style={{ color: 'var(--text-muted)' }}>{filteredDoctors.length} matching providers</span>
+            </span>
+          </div>
+        </button>
       </motion.div>
 
       {/* Filters row */}
@@ -560,7 +634,7 @@ export default function ProviderResultsPage() {
 
           {/* ── Hospitals — grouped by type ─────────────────────────────────── */}
           {!loading && hospitals.length > 0 && (
-            <div>
+            <div ref={hospitalsSectionRef} className="scroll-mt-24">
               <div className="flex items-center gap-2 mb-4">
                 <Building2 size={15} strokeWidth={1.75} style={{ color: 'var(--accent-teal)' }} />
                 <h2 className="text-sm font-semibold" style={{ color: 'var(--text-secondary)' }}>Hospitals</h2>
@@ -590,7 +664,7 @@ export default function ProviderResultsPage() {
                     <motion.div variants={stagger} className="space-y-3">
                       {hosps.map((h, i) => (
                         <motion.div key={h.id} variants={fadeRise} style={{ transitionDelay: `${i * 30}ms` }}>
-                          <HospitalCard h={h} />
+                          <HospitalCard h={h} onFocusMap={() => focusHospitalOnMap(h)} />
                         </motion.div>
                       ))}
                     </motion.div>
@@ -602,7 +676,7 @@ export default function ProviderResultsPage() {
 
           {/* ── Doctors — grouped by specialty (flat when filter active) ──── */}
           {!loading && (
-            <div>
+            <div ref={doctorsSectionRef} className="scroll-mt-24">
               <div className="flex items-center gap-2 mb-4">
                 <Stethoscope size={15} strokeWidth={1.75} style={{ color: 'var(--accent-violet)' }} />
                 <h2 className="text-sm font-semibold" style={{ color: 'var(--text-secondary)' }}>
@@ -687,6 +761,7 @@ export default function ProviderResultsPage() {
                 markers={mapMarkers}
                 centerLat={effectiveLat}
                 centerLng={effectiveLng}
+                focusedMarkerId={focusedMarkerId}
               />
             </div>
           </div>

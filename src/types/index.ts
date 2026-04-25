@@ -193,6 +193,7 @@ export type PatientDocument = {
   filename: string
   storagePath: string
   downloadUrl?: string
+  uploadWarning?: string
   contentType: string
   uploadedAt: Timestamp
   category: DocumentCategory

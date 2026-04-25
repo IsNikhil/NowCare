@@ -285,6 +285,22 @@ export default function DocumentDetail() {
             )}
           </div>
 
+          {document.uploadWarning && (
+            <div
+              className="mb-5 flex items-start gap-2 rounded-xl border px-3 py-2 text-xs leading-relaxed"
+              style={{
+                borderColor: 'hsla(38,95%,60%,0.25)',
+                background: 'hsla(38,95%,60%,0.08)',
+                color: 'var(--text-secondary)',
+              }}
+            >
+              <AlertTriangle size={13} strokeWidth={1.75} className="mt-0.5 shrink-0" style={{ color: 'var(--accent-amber)' }} />
+              <span>
+                The report was saved, but the original file link is unavailable because Firebase Storage rejected or timed out during upload.
+              </span>
+            </div>
+          )}
+
           {/* Quick stats */}
           <div className="grid grid-cols-3 gap-3">
             {[
