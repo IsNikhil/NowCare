@@ -11,7 +11,7 @@ import { Input } from '../../components/ui/Input'
 import { Modal } from '../../components/ui/Modal'
 import { Badge } from '../../components/ui/Badge'
 import { SkeletonCard } from '../../components/ui/Skeleton'
-import { useToastContext } from '../../context/ToastContext'
+import { toast } from 'sonner'
 import { formatDate, formatTime } from '../../lib/format'
 import { Trash2, ToggleLeft, ToggleRight } from 'lucide-react'
 import type { MRISlot, ScanType } from '../../types'
@@ -44,7 +44,7 @@ const scanBadge: Record<ScanType, 'teal' | 'info' | 'warning' | 'default'> = {
 
 export default function MRISlotManagerPage() {
   const { user } = useAuth()
-  const { addToast } = useToastContext()
+  
 
   const { data: slots, loading } = useFirestoreCollection<MRISlot>(
     'mri_slots',
@@ -71,7 +71,7 @@ export default function MRISlotManagerPage() {
         available: true,
         createdAt: serverTimestamp(),
       })
-      addToast('success', 'Slot added.')
+      toast.success('Slot added.')
       setDate('')
       setTime('08:00')
       setScanType('')
@@ -79,7 +79,7 @@ export default function MRISlotManagerPage() {
       console.error('Scan slot add failed:', err)
       const msg = err instanceof Error ? err.message : 'Could not add slot.'
       setAddError(msg)
-      addToast('error', 'Could not add slot.')
+      toast.error('Could not add slot.')
     } finally {
       setSubmitting(false)
     }
@@ -88,10 +88,10 @@ export default function MRISlotManagerPage() {
   async function handleDelete(id: string) {
     try {
       await deleteDoc(doc(db, 'mri_slots', id))
-      addToast('success', 'Slot removed.')
+      toast.success('Slot removed.')
       setDeleteId(null)
     } catch {
-      addToast('error', 'Could not remove slot.')
+      toast.error('Could not remove slot.')
     }
   }
 
@@ -102,7 +102,7 @@ export default function MRISlotManagerPage() {
         updatedAt: serverTimestamp(),
       })
     } catch {
-      addToast('error', 'Could not update slot.')
+      toast.error('Could not update slot.')
     }
   }
 

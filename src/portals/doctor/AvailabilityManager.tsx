@@ -10,7 +10,7 @@ import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
 import { Modal } from '../../components/ui/Modal'
 import { SkeletonCard } from '../../components/ui/Skeleton'
-import { useToastContext } from '../../context/ToastContext'
+import { toast } from 'sonner'
 import { formatDate, formatTime } from '../../lib/format'
 import type { DoctorSlot } from '../../types'
 
@@ -106,7 +106,7 @@ function slotPreview(
 
 export default function AvailabilityManager() {
   const { user } = useAuth()
-  const { addToast } = useToastContext()
+  
 
   const now = useMemo(() => new Date(), [])
 
@@ -134,7 +134,7 @@ export default function AvailabilityManager() {
     try {
       const dates = generateSlotDates(date, startTime, endTime, Number(duration), repeat, repeatCount)
       if (dates.length === 0) {
-        addToast('error', 'No slots generated. Check your start and end times.')
+        toast.error('No slots generated. Check your start and end times.')
         return
       }
       await Promise.all(
@@ -148,7 +148,7 @@ export default function AvailabilityManager() {
           })
         )
       )
-      addToast('success', `Added ${dates.length} slot${dates.length !== 1 ? 's' : ''}.`)
+      toast.success(`Added ${dates.length} slot${dates.length !== 1 ? 's' : ''}.`)
       setDate('')
       setStartTime('09:00')
       setEndTime('17:00')
@@ -156,7 +156,7 @@ export default function AvailabilityManager() {
       setRepeat('none')
       setRepeatCount(1)
     } catch {
-      addToast('error', 'Could not add slots.')
+      toast.error('Could not add slots.')
     } finally {
       setSubmitting(false)
     }
@@ -165,10 +165,10 @@ export default function AvailabilityManager() {
   async function handleDelete(id: string) {
     try {
       await deleteDoc(doc(db, 'doctor_slots', id))
-      addToast('success', 'Slot removed.')
+      toast.success('Slot removed.')
       setDeleteId(null)
     } catch {
-      addToast('error', 'Could not remove slot.')
+      toast.error('Could not remove slot.')
     }
   }
 

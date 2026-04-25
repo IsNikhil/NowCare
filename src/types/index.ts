@@ -1,4 +1,7 @@
 import type { GeoPoint, Timestamp } from 'firebase/firestore'
+import type { CareCategory, Urgency } from '../lib/careCategories'
+
+export type { CareCategory, Urgency }
 
 export type Role = 'admin' | 'hospital' | 'doctor' | 'patient'
 
@@ -10,11 +13,15 @@ export type User = {
 
 export type Patient = {
   uid: string
+  displayName?: string
   age: number
   gender: 'male' | 'female' | 'nonbinary' | 'prefer_not_to_say'
-  location: GeoPoint
-  lat: number
-  lng: number
+  location?: GeoPoint
+  lat?: number
+  lng?: number
+  allergies?: string[]
+  medications?: string[]
+  emergencyContact?: string
 }
 
 export type ERStatus = 'low' | 'moderate' | 'high' | 'closed'
@@ -46,6 +53,10 @@ export type Hospital = {
   name: string
   email?: string
   status: HospitalStatus
+  address?: string
+  phone?: string
+  type?: string
+  services?: string[]
   createdAt?: Timestamp
   approvedAt?: Timestamp
   supportingDocuments?: string
@@ -79,14 +90,21 @@ export type Doctor = {
   specialty: string
   name?: string
   displayName?: string
+  credentials?: string
   address?: string
+  bio?: string
+  languages?: string[]
+  acceptedInsurance?: string[]
+  avgRating?: number
+  totalReviews?: number
+  affiliatedHospitalId?: string
   badgeUpdatedAt?: Timestamp
   coordinates?: GeoPoint
   lat?: number
   lng?: number
 }
 
-export type ScanType = 'MRI' | 'CT Scan' | 'X-Ray' | 'Ultrasound'
+export type ScanType = 'MRI' | 'CT' | 'X-Ray' | 'Ultrasound'
 
 export type MRISlot = {
   hospitalId: string
@@ -99,24 +117,25 @@ export type DoctorSlot = {
   doctorId: string
   datetime: Timestamp
   available: boolean
-  status?: string
+  status?: 'open' | 'reserved' | 'blocked'
   durationMinutes?: number
+  bookedByPatientId?: string
 }
 
-export type CareType = 'er' | 'urgent' | 'telehealth' | 'wait'
-
-export type Urgency = 'immediate' | 'soon' | 'routine'
-
 export type TriageResult = {
-  care_type: CareType
+  care_category: CareCategory
   urgency: Urgency
-  reasoning: string
+  recommended_specialty?: string
+  scan_type?: ScanType
+  short_reasoning: string
   red_flags: string[]
+  what_to_expect: string
 }
 
 export type ProviderType = 'hospital' | 'doctor'
 
 export type CareJourney = {
+  id?: string
   patientId: string
   symptoms?: string
   triage_result?: TriageResult
@@ -127,4 +146,85 @@ export type CareJourney = {
   createdAt: Timestamp
 }
 
+export type DocumentCategory = 'lab_result' | 'prescription' | 'scan_report' | 'discharge_summary' | 'other'
+
+export type FindingStatus = 'normal' | 'low' | 'high' | 'abnormal' | 'info'
+
+export type DocumentFinding = {
+  label: string
+  value: string
+  reference_range?: string
+  status: FindingStatus
+  explanation: string
+}
+
+export type DocumentMedication = {
+  name: string
+  dose?: string
+  frequency?: string
+  purpose: string
+}
+
+export type DocumentAnalysis = {
+  document_type: string
+  date_of_document?: string
+  provider_name?: string
+  patient_name?: string
+  summary: string
+  key_findings: DocumentFinding[]
+  medications?: DocumentMedication[]
+  follow_up_recommendations: string[]
+  questions_to_ask_doctor: string[]
+  red_flags: string[]
+  disclaimer: string
+}
+
+export type AnalysisStatus = 'pending' | 'complete' | 'failed'
+
+export type PatientDocument = {
+  id?: string
+  docId: string
+  patientId: string
+  filename: string
+  storagePath: string
+  contentType: string
+  uploadedAt: Timestamp
+  category: DocumentCategory
+  analysis?: DocumentAnalysis
+  analysisStatus: AnalysisStatus
+  fileSize?: number
+}
+
+export type BookingStatus = 'scheduled' | 'completed' | 'cancelled' | 'no_show'
+
+export type Booking = {
+  bookingId: string
+  patientId: string
+  doctorId: string
+  slotId: string
+  scheduled_for: Timestamp
+  reason: string
+  linked_assessment_id?: string
+  linked_documents?: string[]
+  pre_visit_briefing?: string
+  status: BookingStatus
+  created_at: Timestamp
+}
+
+export type NotificationType = 'follow_up' | 'booking_confirmation' | 'document_ready' | 'system'
+
+export type AppNotification = {
+  notificationId: string
+  userId: string
+  type: NotificationType
+  title: string
+  body: string
+  link?: string
+  read: boolean
+  created_at: Timestamp
+}
+
 export type WithId<T> = T & { id: string }
+
+// Legacy compat
+export type CareType = 'er' | 'urgent' | 'telehealth' | 'wait'

@@ -1,5 +1,6 @@
-import { LogOut, User } from 'lucide-react'
+import { LogOut, User, Menu } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
+import { ThemeToggle } from '../ui/ThemeToggle'
 import { Badge } from '../ui/Badge'
 
 const roleLabel: Record<string, string> = {
@@ -9,10 +10,10 @@ const roleLabel: Record<string, string> = {
   admin: 'Admin',
 }
 
-const roleBadge: Record<string, 'teal' | 'info' | 'warning' | 'success'> = {
+const roleBadgeVariant: Record<string, 'teal' | 'info' | 'warning' | 'success'> = {
   patient: 'teal',
   doctor: 'info',
-  hospital: 'teal',
+  hospital: 'warning',
   admin: 'success',
 }
 
@@ -20,34 +21,61 @@ export default function Topbar({ onMenuToggle }: { onMenuToggle?: () => void }) 
   const { profile, role, logout } = useAuth()
 
   return (
-    <header className="h-16 glass-3 flex items-center justify-between px-4 md:px-6">
+    <header
+      className="h-14 md:h-16 flex items-center justify-between px-4 md:px-6 shrink-0 sticky top-0 z-20"
+      style={{
+        background: 'var(--bg-elevated)',
+        borderBottom: '1px solid var(--border-subtle)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+      }}
+    >
       <button
-        className="md:hidden p-2 rounded-xl text-slate-500 hover:glass-1 transition-all"
+        className="lg:hidden p-2 rounded-xl transition-colors hover:bg-[var(--surface-tint)]"
+        style={{ color: 'var(--text-secondary)' }}
         onClick={onMenuToggle}
         aria-label="Toggle menu"
       >
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-          <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
-        </svg>
+        <Menu size={20} strokeWidth={1.75} />
       </button>
 
-      <div className="flex items-center gap-3 ml-auto">
+      <div className="hidden lg:flex items-center gap-1.5">
+        <div
+          className="w-6 h-6 rounded-lg flex items-center justify-center text-white text-xs font-bold mr-1"
+          style={{ background: 'linear-gradient(135deg, var(--accent-teal), hsl(168,76%,55%))' }}
+        >
+          N
+        </div>
+        <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>NowCare</span>
+      </div>
+
+      <div className="flex items-center gap-2 ml-auto">
+        <ThemeToggle />
+
         {role && (
-          <Badge variant={roleBadge[role] ?? 'default'}>
+          <Badge variant={roleBadgeVariant[role] ?? 'default'}>
             {roleLabel[role] ?? role}
           </Badge>
         )}
-        <div className="flex items-center gap-2 text-sm text-slate-600">
-          <div className="w-8 h-8 rounded-full glass-1 flex items-center justify-center">
-            <User size={16} strokeWidth={1.75} className="text-slate-500" />
+
+        <div
+          className="flex items-center gap-2 px-2 py-1.5 rounded-xl cursor-pointer hover:bg-[var(--surface-tint)] transition-colors"
+        >
+          <div
+            className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold text-white shrink-0"
+            style={{ background: 'linear-gradient(135deg, var(--accent-teal), var(--accent-violet))' }}
+          >
+            {profile?.email?.charAt(0).toUpperCase() ?? <User size={14} strokeWidth={1.75} />}
           </div>
-          <span className="hidden sm:block font-medium text-ink-800 max-w-[140px] truncate">
-            {profile?.email ?? ''}
+          <span className="hidden sm:block text-sm font-medium max-w-[120px] truncate" style={{ color: 'var(--text-primary)' }}>
+            {profile?.email?.split('@')[0] ?? ''}
           </span>
         </div>
+
         <button
           onClick={logout}
-          className="p-2 rounded-xl text-slate-400 hover:text-rose-500 hover:glass-1 transition-all"
+          className="p-2 rounded-xl transition-colors hover:bg-[var(--surface-tint)] hover:text-rose-500"
+          style={{ color: 'var(--text-muted)' }}
           aria-label="Log out"
         >
           <LogOut size={18} strokeWidth={1.75} />

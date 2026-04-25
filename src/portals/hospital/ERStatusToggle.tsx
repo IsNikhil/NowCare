@@ -4,7 +4,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { useFirestoreDoc } from '../../hooks/useFirestoreDoc'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner'
-import { useToastContext } from '../../context/ToastContext'
+import { toast } from 'sonner'
 import { ER_STATUS_OPTIONS } from '../../lib/constants'
 import type { ERStatus, Hospital } from '../../types'
 import type { Timestamp } from 'firebase/firestore'
@@ -47,7 +47,7 @@ function formatLastUpdated(ts: Timestamp): string {
 
 export default function ERStatusTogglePage() {
   const { user } = useAuth()
-  const { addToast } = useToastContext()
+  
 
   const { data: hospital, loading } = useFirestoreDoc<Hospital>(
     user ? `hospitals/${user.uid}` : ''
@@ -60,9 +60,9 @@ export default function ERStatusTogglePage() {
         er_status: status,
         er_updated: serverTimestamp(),
       })
-      addToast('success', 'ER status updated.')
+      toast.success('ER status updated.')
     } catch {
-      addToast('error', 'Could not update ER status.')
+      toast.error('Could not update ER status.')
     }
   }
 

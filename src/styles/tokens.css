@@ -1,0 +1,42 @@
+/* NowCare Design Tokens - light and dark themes */
+
+:root,
+[data-theme="light"] {
+  --bg-base: hsl(160, 20%, 98%);
+  --bg-elevated: hsl(0, 0%, 100%);
+  --bg-glass: hsla(0, 0%, 100%, 0.6);
+  --surface-tint: hsl(160, 50%, 96%);
+  --border-subtle: hsla(160, 20%, 70%, 0.2);
+  --text-primary: hsl(180, 30%, 10%);
+  --text-secondary: hsl(180, 10%, 40%);
+  --text-muted: hsl(180, 8%, 60%);
+  --accent-teal: hsl(168, 76%, 42%);
+  --accent-teal-glow: hsla(168, 76%, 42%, 0.3);
+  --accent-coral: hsl(8, 90%, 65%);
+  --accent-amber: hsl(38, 95%, 60%);
+  --accent-violet: hsl(265, 70%, 65%);
+  --accent-green: hsl(142, 71%, 45%);
+  --shadow-card: 0 1px 0 0 rgba(255,255,255,0.06) inset, 0 20px 60px -20px rgba(15,80,70,0.15), 0 4px 20px -4px rgba(15,80,70,0.08);
+  --shadow-glow: 0 0 30px -8px var(--accent-teal-glow);
+  --gradient-border: linear-gradient(135deg, hsla(168,76%,60%,0.3) 0%, transparent 50%, hsla(168,76%,60%,0.1) 100%);
+}
+
+[data-theme="dark"] {
+  --bg-base: hsl(195, 25%, 7%);
+  --bg-elevated: hsl(195, 22%, 11%);
+  --bg-glass: hsla(195, 25%, 12%, 0.7);
+  --surface-tint: hsl(195, 25%, 14%);
+  --border-subtle: hsla(168, 60%, 60%, 0.12);
+  --text-primary: hsl(160, 15%, 95%);
+  --text-secondary: hsl(180, 10%, 70%);
+  --text-muted: hsl(180, 8%, 50%);
+  --accent-teal: hsl(168, 76%, 48%);
+  --accent-teal-glow: hsla(168, 76%, 48%, 0.4);
+  --accent-coral: hsl(8, 90%, 68%);
+  --accent-amber: hsl(38, 95%, 65%);
+  --accent-violet: hsl(265, 70%, 72%);
+  --accent-green: hsl(142, 71%, 52%);
+  --shadow-card: 0 1px 0 0 rgba(255,255,255,0.04) inset, 0 20px 60px -20px rgba(0,0,0,0.5), 0 4px 20px -4px rgba(0,0,0,0.3);
+  --shadow-glow: 0 0 40px -8px var(--accent-teal-glow);
+  --gradient-border: linear-gradient(135deg, hsla(168,76%,60%,0.25) 0%, transparent 50%, hsla(168,76%,60%,0.12) 100%);
+}

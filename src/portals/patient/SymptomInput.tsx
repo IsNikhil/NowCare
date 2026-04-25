@@ -10,7 +10,7 @@ import { Textarea } from '../../components/ui/Textarea'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
-import { useToastContext } from '../../context/ToastContext'
+import { toast } from 'sonner'
 import type { Patient, TriageResult, CareType } from '../../types'
 
 const MAX_CHARS = 1000
@@ -81,7 +81,7 @@ const urgencyLabel: Record<string, string> = {
 export default function SymptomInput() {
   const { user } = useAuth()
   const navigate = useNavigate()
-  const { addToast } = useToastContext()
+  
 
   const [symptoms, setSymptoms] = useState('')
   const [loading, setLoading] = useState(false)
@@ -144,12 +144,12 @@ export default function SymptomInput() {
         })
         setJourneyId(docRef.id)
       } catch {
-        addToast('error', 'Could not save your assessment. Results are still shown below.')
+        toast.error('Could not save your assessment. Results are still shown below.')
       }
 
       setTriageResult(result)
     } catch {
-      addToast('error', 'Could not process your symptoms. Please try again.')
+      toast.error('Could not process your symptoms. Please try again.')
     } finally {
       setLoading(false)
     }

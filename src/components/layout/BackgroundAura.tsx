@@ -1,9 +1,18 @@
 export default function BackgroundAura() {
   return (
     <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none" aria-hidden>
-      <div className="absolute -top-40 -left-40 w-[500px] h-[500px] rounded-full bg-teal-400/20 blur-3xl animate-aura-1" />
-      <div className="absolute -top-20 right-0 w-[400px] h-[400px] rounded-full bg-amber-300/15 blur-3xl animate-aura-2" />
-      <div className="absolute bottom-0 left-1/2 w-[600px] h-[600px] rounded-full bg-rose-300/10 blur-3xl animate-aura-3" />
+      <div
+        className="aurora-1 absolute -top-[20%] -left-[10%] w-[60vw] h-[60vh] rounded-full blur-3xl"
+        style={{ background: 'radial-gradient(ellipse at center, var(--accent-teal-glow), transparent 70%)', opacity: 0.5 }}
+      />
+      <div
+        className="aurora-2 absolute top-[30%] -right-[15%] w-[50vw] h-[50vh] rounded-full blur-3xl"
+        style={{ background: 'radial-gradient(ellipse at center, hsla(265,70%,65%,0.2), transparent 70%)' }}
+      />
+      <div
+        className="aurora-3 absolute -bottom-[10%] left-[50%] w-[70vw] h-[40vh] rounded-full blur-3xl"
+        style={{ background: 'radial-gradient(ellipse at center, var(--accent-teal-glow), transparent 70%)', opacity: 0.3 }}
+      />
     </div>
   )
 }

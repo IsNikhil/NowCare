@@ -1,40 +1,88 @@
-import { useState } from 'react'
-import { Outlet } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { Outlet, useLocation } from 'react-router-dom'
+import { motion, AnimatePresence } from 'framer-motion'
 import Sidebar from './Sidebar'
-import Topbar from './Topbar'
-import MobileNav from './MobileNav'
+import TopBar from './Topbar'
+import BottomNav from './MobileNav'
+import HelpBot from '../helpbot/HelpBot'
+import { pageTransition } from '../../lib/motion'
 
 export default function AppShell() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const location = useLocation()
+
+  useEffect(() => {
+    setSidebarOpen(false)
+  }, [location.pathname])
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen" style={{ background: 'var(--bg-base)' }}>
       <div className="flex h-screen overflow-hidden">
-        <aside className="hidden md:flex w-60 shrink-0 flex-col h-full glass-3 fixed left-0 top-0 bottom-0 z-30">
+        {/* Desktop persistent sidebar */}
+        <aside
+          className="hidden lg:flex w-64 shrink-0 flex-col h-full fixed left-0 top-0 bottom-0 z-30"
+          style={{ borderRight: '1px solid var(--border-subtle)', background: 'var(--bg-elevated)' }}
+        >
           <Sidebar />
         </aside>
 
-        {sidebarOpen && (
-          <div className="fixed inset-0 z-40 md:hidden">
-            <div
-              className="absolute inset-0 bg-ink-900/30 backdrop-blur-sm"
-              onClick={() => setSidebarOpen(false)}
-              aria-hidden
-            />
-            <aside className="relative w-64 h-full glass-3">
-              <Sidebar onNavClick={() => setSidebarOpen(false)} />
-            </aside>
-          </div>
-        )}
+        {/* Tablet icon rail */}
+        <aside
+          className="hidden md:flex lg:hidden w-[72px] shrink-0 flex-col h-full fixed left-0 top-0 bottom-0 z-30"
+          style={{ borderRight: '1px solid var(--border-subtle)', background: 'var(--bg-elevated)' }}
+        >
+          <Sidebar iconOnly />
+        </aside>
 
-        <div className="flex-1 md:ml-60 flex flex-col h-screen overflow-hidden">
-          <Topbar onMenuToggle={() => setSidebarOpen(!sidebarOpen)} />
-          <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8 animate-fade-up">
-            <Outlet />
+        {/* Mobile slide-in drawer */}
+        <AnimatePresence>
+          {sidebarOpen && (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="fixed inset-0 z-40 md:hidden bg-black/40 backdrop-blur-sm"
+                onClick={() => setSidebarOpen(false)}
+                aria-hidden
+              />
+              <motion.aside
+                initial={{ x: -280 }}
+                animate={{ x: 0 }}
+                exit={{ x: -280 }}
+                transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+                className="fixed left-0 top-0 bottom-0 z-50 w-64 md:hidden flex flex-col"
+                style={{ background: 'var(--bg-elevated)', borderRight: '1px solid var(--border-subtle)' }}
+              >
+                <Sidebar onNavClick={() => setSidebarOpen(false)} />
+              </motion.aside>
+            </>
+          )}
+        </AnimatePresence>
+
+        {/* Main content area */}
+        <div className="flex-1 md:ml-[72px] lg:ml-64 flex flex-col h-screen overflow-hidden">
+          <TopBar onMenuToggle={() => setSidebarOpen(!sidebarOpen)} />
+          <main className="flex-1 overflow-y-auto pb-24 md:pb-8">
+            <motion.div
+              key={location.pathname}
+              variants={pageTransition}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className="p-4 md:p-6 lg:p-8 max-w-6xl mx-auto"
+            >
+              <Outlet />
+            </motion.div>
           </main>
         </div>
 
-        <MobileNav />
+        {/* Mobile bottom nav */}
+        <BottomNav />
+
+        {/* Help Bot */}
+        <HelpBot />
       </div>
     </div>
   )

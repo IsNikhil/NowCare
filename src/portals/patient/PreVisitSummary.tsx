@@ -8,7 +8,7 @@ import { useFirestoreDoc } from '../../hooks/useFirestoreDoc'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner'
-import { useToastContext } from '../../context/ToastContext'
+import { toast } from 'sonner'
 import { Printer, Share2 } from 'lucide-react'
 import type { Patient, CareJourney } from '../../types'
 
@@ -19,7 +19,7 @@ type LocationState = {
 export default function PreVisitSummary() {
   const { user } = useAuth()
   const location = useLocation()
-  const { addToast } = useToastContext()
+  
   const state = location.state as LocationState | null
   const journeyId = state?.journeyId
 
@@ -81,7 +81,7 @@ export default function PreVisitSummary() {
       } catch { /* user cancelled */ }
     } else {
       await navigator.clipboard.writeText(text)
-      addToast('success', 'Summary copied to clipboard')
+      toast.success('Summary copied to clipboard')
     }
   }
 

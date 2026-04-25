@@ -11,11 +11,13 @@ import { SignupPage, PatientSignupPage, DoctorSignupPage, HospitalSignupPage } f
 
 import PatientLayout from '../portals/patient/PatientLayout'
 import PatientHome from '../portals/patient/PatientHome'
-import SymptomInput from '../portals/patient/SymptomInput'
-import TriageResultPage from '../portals/patient/TriageResult'
+import Assess from '../portals/patient/Assess'
 import ProviderResultsPage from '../portals/patient/ProviderResults'
 import PreVisitSummary from '../portals/patient/PreVisitSummary'
 import JourneyHistory from '../portals/patient/JourneyHistory'
+import Documents from '../portals/patient/Documents'
+import DocumentDetail from '../portals/patient/DocumentDetail'
+import PatientProfile from '../portals/patient/PatientProfile'
 
 import DoctorLayout from '../portals/doctor/DoctorLayout'
 import DoctorDashboard from '../portals/doctor/DoctorDashboard'
@@ -57,11 +59,15 @@ export const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: <PatientHome /> },
-      { path: 'symptoms', element: <SymptomInput /> },
-      { path: 'triage-result', element: <TriageResultPage /> },
+      { path: 'assess', element: <Assess /> },
+      { path: 'symptoms', element: <Assess /> },
+      { path: 'triage-result', element: <Assess /> },
       { path: 'providers', element: <ProviderResultsPage /> },
       { path: 'summary', element: <PreVisitSummary /> },
       { path: 'history', element: <JourneyHistory /> },
+      { path: 'documents', element: <Documents /> },
+      { path: 'documents/:docId', element: <DocumentDetail /> },
+      { path: 'profile', element: <PatientProfile /> },
     ],
   },
   {

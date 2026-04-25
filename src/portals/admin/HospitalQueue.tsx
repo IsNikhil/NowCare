@@ -8,13 +8,13 @@ import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { SkeletonCard } from '../../components/ui/Skeleton'
 import { EmptyState } from '../../components/ui/EmptyState'
-import { useToastContext } from '../../context/ToastContext'
+import { toast } from 'sonner'
 import { formatDate } from '../../lib/format'
 import { CheckCircle2, XCircle, ExternalLink } from 'lucide-react'
 import type { Hospital } from '../../types'
 
 export default function HospitalQueue({ embedded = false }: { embedded?: boolean }) {
-  const { addToast } = useToastContext()
+  
   const [processing, setProcessing] = useState<string | null>(null)
 
   const { data: hospitals, loading } = useFirestoreCollection<Hospital>(
@@ -50,12 +50,12 @@ export default function HospitalQueue({ embedded = false }: { embedded?: boolean
       })
 
       if (cmsWarning || !cmsData) {
-        addToast('success', `${hospital.name} approved. CMS data unavailable.`)
+        toast.success(`${hospital.name} approved. CMS data unavailable.`)
       } else {
-        addToast('success', `${hospital.name} approved. CMS data fetched.`)
+        toast.success(`${hospital.name} approved. CMS data fetched.`)
       }
     } catch {
-      addToast('error', 'Could not approve hospital.')
+      toast.error('Could not approve hospital.')
     } finally {
       setProcessing(null)
     }
@@ -65,9 +65,9 @@ export default function HospitalQueue({ embedded = false }: { embedded?: boolean
     setProcessing(hospital.id)
     try {
       await updateDoc(doc(db, 'hospitals', hospital.id), { status: 'denied' })
-      addToast('info', `${hospital.name} denied.`)
+      toast(`${hospital.name} denied.`)
     } catch {
-      addToast('error', 'Could not deny hospital.')
+      toast.error('Could not deny hospital.')
     } finally {
       setProcessing(null)
     }

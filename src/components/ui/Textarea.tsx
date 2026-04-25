@@ -33,7 +33,7 @@ export function Textarea({
   return (
     <div className="flex flex-col gap-1.5">
       {label && (
-        <label htmlFor={inputId} className="text-sm font-semibold text-ink-800">
+        <label htmlFor={inputId} className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
           {label}
         </label>
       )}
@@ -41,13 +41,13 @@ export function Textarea({
         ref={ref}
         id={inputId}
         className={[
-          'w-full rounded-2xl px-4 py-3 text-sm text-ink-800 placeholder:text-slate-400',
-          'bg-white/70 backdrop-blur-md resize-none',
-          'border transition-all duration-150',
+          'w-full rounded-xl px-4 py-3 text-sm placeholder:text-[var(--text-muted)]',
+          'bg-[var(--bg-glass)] backdrop-blur-md resize-none',
+          'border transition-all duration-150 outline-none',
+          'text-[var(--text-primary)]',
           error
             ? 'border-rose-400 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/15'
-            : 'border-white/60 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/15',
-          'outline-none',
+            : 'border-[var(--border-subtle)] focus:border-[var(--accent-teal)] focus:ring-2 focus:ring-[var(--accent-teal-glow)]',
           className,
         ]
           .filter(Boolean)
@@ -57,10 +57,10 @@ export function Textarea({
       <div className="flex justify-between items-start">
         <div>
           {error && <p className="text-xs text-rose-500">{error}</p>}
-          {helperText && !error && <p className="text-xs text-slate-500">{helperText}</p>}
+          {helperText && !error && <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{helperText}</p>}
         </div>
         {maxChars !== undefined && currentLength !== undefined && (
-          <p className={`text-xs ml-auto ${currentLength > maxChars ? 'text-rose-500' : 'text-slate-400'}`}>
+          <p className={`text-xs ml-auto ${currentLength > maxChars ? 'text-rose-500' : ''}`} style={currentLength <= maxChars ? { color: 'var(--text-muted)' } : {}}>
             {currentLength}/{maxChars}
           </p>
         )}

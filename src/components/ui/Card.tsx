@@ -9,16 +9,16 @@ type CardProps = HTMLAttributes<HTMLDivElement> & {
 }
 
 const levelClasses: Record<CardLevel, string> = {
-  1: 'glass-1',
-  2: 'glass-2',
-  3: 'glass-3',
+  1: 'glass-card',
+  2: 'glass-card-elevated',
+  3: 'glass-card-elevated',
 }
 
 const paddingClasses: Record<Padding, string> = {
   none: '',
   sm: 'p-4',
-  md: 'p-6',
-  lg: 'p-8',
+  md: 'p-5',
+  lg: 'p-7',
 }
 
 export function Card({
@@ -33,7 +33,6 @@ export function Card({
       className={[
         levelClasses[level],
         paddingClasses[padding],
-        'rounded-2xl',
         className,
       ]
         .filter(Boolean)

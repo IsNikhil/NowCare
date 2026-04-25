@@ -1,38 +1,55 @@
 type SkeletonProps = {
   className?: string
+  height?: number | string
+  width?: number | string
+  rounded?: string
 }
 
-function Shimmer({ className = '' }: SkeletonProps) {
+export function Skeleton({ className = '', height, width, rounded = 'rounded-xl' }: SkeletonProps) {
   return (
     <div
-      className={[
-        'animate-pulse bg-gradient-to-r from-slate-100 via-slate-200 to-slate-100',
-        'bg-[length:400%_100%]',
-        'rounded-xl',
-        className,
-      ].join(' ')}
+      className={`skeleton ${rounded} ${className}`}
+      style={{ height, width }}
+      aria-hidden
     />
   )
 }
 
-export function SkeletonLine({ className = '' }: SkeletonProps) {
-  return <Shimmer className={`h-4 ${className}`} />
+export function SkeletonLine({ className = '' }: { className?: string }) {
+  return <Skeleton height={14} className={className} />
 }
 
-export function SkeletonCard() {
+export function SkeletonCard({ lines = 3 }: { lines?: number }) {
   return (
-    <div className="glass-1 rounded-2xl p-6 flex flex-col gap-3">
-      <Shimmer className="h-5 w-3/4" />
-      <Shimmer className="h-4 w-full" />
-      <Shimmer className="h-4 w-5/6" />
-      <div className="flex gap-2 mt-2">
-        <Shimmer className="h-8 w-20 rounded-full" />
-        <Shimmer className="h-8 w-24 rounded-full" />
-      </div>
+    <div className="glass-card p-5 space-y-3">
+      <Skeleton height={20} width="60%" />
+      {Array.from({ length: lines }).map((_, i) => (
+        <Skeleton key={i} height={14} width={i === lines - 1 ? '40%' : '100%'} />
+      ))}
     </div>
   )
 }
 
-export function SkeletonAvatar({ size = 12 }: { size?: number }) {
-  return <Shimmer className={`w-${size} h-${size} rounded-full`} />
+export function SkeletonList({ count = 4 }: { count?: number }) {
+  return (
+    <div className="space-y-3">
+      {Array.from({ length: count }).map((_, i) => (
+        <SkeletonCard key={i} lines={2} />
+      ))}
+    </div>
+  )
+}
+
+export function SkeletonAvatar({ size = 48 }: { size?: number }) {
+  return <Skeleton height={size} width={size} rounded="rounded-full" />
+}
+
+export function SkeletonText({ lines = 3 }: { lines?: number }) {
+  return (
+    <div className="space-y-2">
+      {Array.from({ length: lines }).map((_, i) => (
+        <Skeleton key={i} height={14} width={i === lines - 1 ? '65%' : '100%'} />
+      ))}
+    </div>
+  )
 }
