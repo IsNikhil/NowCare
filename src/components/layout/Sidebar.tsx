@@ -12,6 +12,7 @@ import {
   UserCircle,
 } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
+import { NowCareLogo } from '../brand/NowCareLogo'
 
 type NavItem = {
   to: string
@@ -64,35 +65,14 @@ export default function Sidebar({ onNavClick, iconOnly }: SidebarProps) {
     <div className={`flex flex-col h-full ${iconOnly ? 'px-3 py-4 items-center' : 'px-4 py-5'}`}>
       {!iconOnly && (
         <div className="mb-7 px-2">
-          <div className="flex items-center gap-2 mb-0.5">
-            <div
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black"
-              style={{
-                background: 'linear-gradient(135deg, var(--accent-teal), hsl(168,76%,62%))',
-                color: '#031617',
-                boxShadow: '0 4px 14px -4px var(--accent-teal-glow), inset 0 1px 0 rgba(255,255,255,.25)',
-              }}
-            >
-              N
-            </div>
-            <span className="text-lg font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>NowCare</span>
-          </div>
+          <NowCareLogo size={30} wordmarkClassName="text-lg text-[var(--text-primary)]" className="mb-0.5" />
           <p className="text-xs pl-9" style={{ color: 'var(--text-muted)' }}>Healthcare navigation</p>
         </div>
       )}
 
       {iconOnly && (
         <div className="mb-6">
-          <div
-            className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-black"
-            style={{
-              background: 'linear-gradient(135deg, var(--accent-teal), hsl(168,76%,62%))',
-              color: '#031617',
-              boxShadow: '0 4px 14px -4px var(--accent-teal-glow), inset 0 1px 0 rgba(255,255,255,.25)',
-            }}
-          >
-            N
-          </div>
+          <NowCareLogo size={38} showWordmark={false} />
         </div>
       )}
 

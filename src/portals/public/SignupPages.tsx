@@ -7,6 +7,7 @@ import DoctorSignupForm from '../../components/auth/DoctorSignupForm'
 import HospitalSignupForm from '../../components/auth/HospitalSignupForm'
 import { GlassCard } from '../../components/ui/GlassCard'
 import { ThemeToggle } from '../../components/ui/ThemeToggle'
+import { NowCareLogo } from '../../components/brand/NowCareLogo'
 import { fadeRise } from '../../lib/motion'
 
 function AuthShell({ title, subtitle, back, children }: {
@@ -36,11 +37,7 @@ function AuthShell({ title, subtitle, back, children }: {
       >
         <Link to="/" className="inline-flex items-center gap-1.5 text-sm mb-2 hover:underline"
           style={{ color: 'var(--text-muted)' }}>
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold"
-              style={{ background: 'linear-gradient(135deg, var(--accent-teal), hsl(168,76%,55%))' }}>N</div>
-            <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>NowCare</span>
-          </div>
+          <NowCareLogo size={28} wordmarkClassName="text-sm text-[var(--text-primary)]" />
         </Link>
 
         {back && (
@@ -80,11 +77,7 @@ export function SignupPage() {
       <div className="absolute top-4 right-4"><ThemeToggle /></div>
 
       <motion.div variants={fadeRise} initial="initial" animate="animate" className="w-full max-w-md">
-        <div className="flex items-center gap-2 mb-8">
-          <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white font-bold text-sm"
-            style={{ background: 'linear-gradient(135deg, var(--accent-teal), hsl(168,76%,55%))' }}>N</div>
-          <span className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>NowCare</span>
-        </div>
+        <NowCareLogo size={34} wordmarkClassName="text-xl text-[var(--text-primary)]" className="mb-8" />
 
         <h1 className="text-3xl font-extrabold tracking-tight mb-1" style={{ color: 'var(--text-primary)' }}>
           Create account

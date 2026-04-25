@@ -21,6 +21,7 @@ import {
   Loader2,
 } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
+import { NowCareLogo } from '../../components/brand/NowCareLogo'
 import { useFirestoreCollection } from '../../hooks/useFirestoreCollection'
 import type { Doctor, Hospital, MRISlot } from '../../types'
 
@@ -100,28 +101,6 @@ const demoQueries = [
 
 function formatCount(count: number) {
   return new Intl.NumberFormat('en-US').format(count)
-}
-
-function Logo({ size = 32 }: { size?: number }) {
-  return (
-    <div className="flex items-center gap-2.5">
-      <div
-        className="flex items-center justify-center font-black tracking-tight"
-        style={{
-          width: size,
-          height: size,
-          borderRadius: Math.max(8, size * 0.31),
-          background: 'linear-gradient(135deg, var(--accent-teal), hsl(168,76%,62%))',
-          color: '#031617',
-          fontSize: size * 0.5,
-          boxShadow: '0 6px 20px -4px var(--accent-teal-glow), inset 0 1px 0 rgba(255,255,255,.25)',
-        }}
-      >
-        N
-      </div>
-      <span className="text-lg font-extrabold tracking-tight text-[var(--text-primary)]">NowCare</span>
-    </div>
-  )
 }
 
 function Aurora() {
@@ -313,7 +292,7 @@ export default function LandingPage() {
         }}
       >
         <div className="mx-auto flex h-full max-w-6xl items-center gap-6 px-5 md:px-8">
-          <Logo />
+          <NowCareLogo />
           <div className="ml-4 hidden flex-1 gap-7 md:flex">
             {[
               ['Features', '#features'],
@@ -539,7 +518,7 @@ export default function LandingPage() {
         <div className="mx-auto max-w-6xl">
           <div className="mb-10 grid gap-8 md:grid-cols-[1.6fr_1fr_1.1fr_1.2fr_1fr]">
             <div>
-              <Logo />
+              <NowCareLogo />
               <p className="mt-3 max-w-xs text-sm leading-relaxed text-[var(--text-muted)]">
                 AI-powered healthcare navigation. Verified providers, live availability, safer next steps.
               </p>

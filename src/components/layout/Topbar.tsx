@@ -2,6 +2,7 @@ import { LogOut, User, Menu } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { ThemeToggle } from '../ui/ThemeToggle'
 import { Badge } from '../ui/Badge'
+import { NowCareLogo } from '../brand/NowCareLogo'
 
 const roleLabel: Record<string, string> = {
   patient: 'Patient',
@@ -40,17 +41,7 @@ export default function Topbar({ onMenuToggle }: { onMenuToggle?: () => void }) 
       </button>
 
       <div className="hidden lg:flex items-center gap-2">
-        <div
-          className="w-6 h-6 rounded-lg flex items-center justify-center text-xs font-black"
-          style={{
-            background: 'linear-gradient(135deg, var(--accent-teal), hsl(168,76%,62%))',
-            color: '#031617',
-            boxShadow: '0 4px 14px -4px var(--accent-teal-glow), inset 0 1px 0 rgba(255,255,255,.25)',
-          }}
-        >
-          N
-        </div>
-        <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>NowCare</span>
+        <NowCareLogo size={26} wordmarkClassName="text-sm text-[var(--text-primary)]" />
       </div>
 
       <div className="flex min-w-0 items-center gap-1.5 sm:gap-2 ml-auto">

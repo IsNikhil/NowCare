@@ -12,6 +12,7 @@ import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
 import { GlassCard } from '../../components/ui/GlassCard'
 import { ThemeToggle } from '../../components/ui/ThemeToggle'
+import { NowCareLogo } from '../../components/brand/NowCareLogo'
 import { fadeRise } from '../../lib/motion'
 import { images } from '../../lib/imageAssets'
 
@@ -74,10 +75,7 @@ export default function LoginPage() {
       >
         <img src={images.authBg} alt="" className="absolute inset-0 w-full h-full object-cover opacity-10" />
         <div className="relative z-10">
-          <div className="flex items-center gap-2 mb-16">
-            <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center text-white font-bold">N</div>
-            <span className="text-white text-xl font-bold">NowCare</span>
-          </div>
+          <NowCareLogo size={38} wordmarkClassName="text-xl text-white" className="mb-16" />
           <h2 className="text-4xl font-extrabold text-white leading-tight mb-4">
             The right care,<br />right now.
           </h2>
