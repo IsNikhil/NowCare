@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "seed": "tsx scripts/seed.ts",
+    "seed:availability": "tsx scripts/seedAvailability.ts",
     "seed:hospitals": "tsx scripts/seedHospitals.ts",
     "deploy": "npm run build && firebase deploy",
     "lint:emdash": "node -e \"const fs=require('fs');const path=require('path');function walk(d){for(const f of fs.readdirSync(d)){const p=path.join(d,f);if(fs.statSync(p).isDirectory()){if(!['node_modules','dist','.git'].includes(f))walk(p);}else if(/\\.(ts|tsx|js|jsx|md|html|css)$/.test(f)){const c=fs.readFileSync(p,'utf8');if(c.includes(String.fromCharCode(8212))){console.error('em dash found in',p);process.exit(1);}}}}walk('.');console.log('no em dashes found');\""
@@ -16,6 +17,7 @@
     "@google/genai": "^1.50.1",
     "@hookform/resolvers": "^5.2.2",
     "@react-google-maps/api": "^2.20.8",
+    "@supabase/supabase-js": "^2.104.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "firebase": "^12.12.1",
