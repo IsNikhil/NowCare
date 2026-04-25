@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Building2, AlertTriangle, Users, Stethoscope, Activity,
   CheckCircle2, XCircle, Clock, LayoutDashboard, CheckSquare,
-  ExternalLink,
+  ExternalLink, Pencil,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { db } from '../../services/firebase'
@@ -13,18 +13,70 @@ import { fetchHospitalData, fetchBenchmarks } from '../../services/cms'
 import { GlassCard } from '../../components/ui/GlassCard'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
+import { Input } from '../../components/ui/Input'
+import { Modal } from '../../components/ui/Modal'
+import { Select } from '../../components/ui/Select'
+import { Textarea } from '../../components/ui/Textarea'
 import { SkeletonCard, SkeletonList } from '../../components/ui/Skeleton'
 import { formatDate } from '../../lib/format'
 import { fadeRise, stagger } from '../../lib/motion'
-import type { Hospital, Doctor, Patient } from '../../types'
+import type { Hospital, Doctor, Patient, Role, User } from '../../types'
 
-type Tab = 'overview' | 'hospitals' | 'doctors' | 'patients'
+type Tab = 'overview' | 'hospitals' | 'doctors' | 'patients' | 'users'
+type EditableKind = 'hospital' | 'doctor' | 'patient' | 'user'
+type EditableItem =
+  | { kind: 'hospital'; item: Hospital & { id: string } }
+  | { kind: 'doctor'; item: Doctor & { id: string } }
+  | { kind: 'patient'; item: Patient & { id: string } }
+  | { kind: 'user'; item: User & { id: string } }
 
 const ER_COLORS: Record<string, string> = {
   low: 'var(--accent-green)',
   moderate: 'var(--accent-amber)',
   high: 'var(--accent-coral)',
   closed: 'var(--text-muted)',
+}
+
+const roleOptions = [
+  { value: 'admin', label: 'Admin' },
+  { value: 'hospital', label: 'Hospital' },
+  { value: 'doctor', label: 'Doctor' },
+  { value: 'patient', label: 'Patient' },
+]
+
+const hospitalStatusOptions = [
+  { value: 'pending', label: 'Pending' },
+  { value: 'approved', label: 'Approved' },
+  { value: 'denied', label: 'Denied' },
+]
+
+const erStatusOptions = [
+  { value: '', label: 'Not set' },
+  { value: 'low', label: 'Low' },
+  { value: 'moderate', label: 'Moderate' },
+  { value: 'high', label: 'High' },
+  { value: 'closed', label: 'Closed' },
+]
+
+const genderOptions = [
+  { value: 'male', label: 'Male' },
+  { value: 'female', label: 'Female' },
+  { value: 'nonbinary', label: 'Nonbinary' },
+  { value: 'prefer_not_to_say', label: 'Prefer not to say' },
+]
+
+function csv(value?: string[]) {
+  return value?.join(', ') ?? ''
+}
+
+function splitCsv(value: string) {
+  return value.split(',').map((item) => item.trim()).filter(Boolean)
+}
+
+function optionalNumber(value: string) {
+  if (value.trim() === '') return undefined
+  const number = Number(value)
+  return Number.isFinite(number) ? number : undefined
 }
 
 // ─── Overview Panel ─────────────────────────────────────────────────────────
@@ -190,12 +242,13 @@ function OverviewPanel({
 
 function HospitalsPanel({
   pending, approved,
-  onApprove, onDeny, processing,
+  onApprove, onDeny, onEdit, processing,
 }: {
   pending: (Hospital & { id: string })[]
   approved: (Hospital & { id: string })[]
   onApprove: (h: Hospital & { id: string }) => void
   onDeny: (h: Hospital & { id: string }) => void
+  onEdit: (h: Hospital & { id: string }) => void
   processing: string | null
 }) {
   const all = [...pending, ...approved]
@@ -233,6 +286,14 @@ function HospitalsPanel({
                   <Badge variant={h.status === 'approved' ? 'success' : h.status === 'denied' ? 'danger' : 'warning'}>
                     {h.status}
                   </Badge>
+                  <button
+                    onClick={() => onEdit(h)}
+                    className="text-xs px-2 py-1 rounded-lg font-semibold transition-colors inline-flex items-center gap-1"
+                    style={{ background: 'var(--surface-tint)', color: 'var(--text-secondary)' }}
+                  >
+                    <Pencil size={12} strokeWidth={1.75} />
+                    Edit
+                  </button>
                   {h.status === 'pending' && (
                     <div className="flex gap-1">
                       <button
@@ -265,7 +326,13 @@ function HospitalsPanel({
 
 // ─── Doctors Panel ───────────────────────────────────────────────────────────
 
-function DoctorsPanel({ doctors }: { doctors: (Doctor & { id: string })[] }) {
+function DoctorsPanel({
+  doctors,
+  onEdit,
+}: {
+  doctors: (Doctor & { id: string })[]
+  onEdit: (d: Doctor & { id: string }) => void
+}) {
   return (
     <motion.div variants={stagger} initial="initial" animate="animate" className="space-y-4">
       <motion.div variants={fadeRise}>
@@ -298,6 +365,14 @@ function DoctorsPanel({ doctors }: { doctors: (Doctor & { id: string })[] }) {
                 <Badge variant={d.verified ? 'success' : 'warning'}>
                   {d.verified ? 'NPI verified' : 'Unverified'}
                 </Badge>
+                <button
+                  onClick={() => onEdit(d)}
+                  className="text-xs px-2 py-1 rounded-lg font-semibold transition-colors inline-flex items-center gap-1"
+                  style={{ background: 'var(--surface-tint)', color: 'var(--text-secondary)' }}
+                >
+                  <Pencil size={12} strokeWidth={1.75} />
+                  Edit
+                </button>
               </div>
             ))}
           </div>
@@ -309,7 +384,13 @@ function DoctorsPanel({ doctors }: { doctors: (Doctor & { id: string })[] }) {
 
 // ─── Patients Panel ──────────────────────────────────────────────────────────
 
-function PatientsPanel({ patients, loading }: { patients: (Patient & { id: string })[]; loading: boolean }) {
+function PatientsPanel({
+  patients, loading, onEdit,
+}: {
+  patients: (Patient & { id: string })[]
+  loading: boolean
+  onEdit: (p: Patient & { id: string }) => void
+}) {
   if (loading) return <SkeletonList count={4} />
 
   return (
@@ -344,6 +425,74 @@ function PatientsPanel({ patients, loading }: { patients: (Patient & { id: strin
                     {p.gender ? ` · ${p.gender}` : ''}
                   </p>
                 </div>
+                <button
+                  onClick={() => onEdit(p)}
+                  className="text-xs px-2 py-1 rounded-lg font-semibold transition-colors inline-flex items-center gap-1"
+                  style={{ background: 'var(--surface-tint)', color: 'var(--text-secondary)' }}
+                >
+                  <Pencil size={12} strokeWidth={1.75} />
+                  Edit
+                </button>
+              </div>
+            ))}
+          </div>
+        </GlassCard>
+      )}
+    </motion.div>
+  )
+}
+
+// ─── Users Panel ─────────────────────────────────────────────────────────────
+
+function UsersPanel({
+  users, loading, onEdit,
+}: {
+  users: (User & { id: string })[]
+  loading: boolean
+  onEdit: (u: User & { id: string }) => void
+}) {
+  if (loading) return <SkeletonList count={4} />
+
+  return (
+    <motion.div variants={stagger} initial="initial" animate="animate" className="space-y-4">
+      <motion.div variants={fadeRise}>
+        <h2 className="text-lg font-bold mb-1" style={{ color: 'var(--text-primary)' }}>
+          Users <span className="text-sm font-normal" style={{ color: 'var(--text-muted)' }}>({users.length})</span>
+        </h2>
+      </motion.div>
+
+      {users.length === 0 ? (
+        <GlassCard className="p-8 text-center">
+          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No users registered yet.</p>
+        </GlassCard>
+      ) : (
+        <GlassCard>
+          <div className="divide-y" style={{ ['--tw-divide-opacity' as string]: 1 }}>
+            {users.map((u) => (
+              <div key={u.id} className="flex items-center gap-3 px-4 py-3">
+                <div
+                  className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 text-xs font-bold"
+                  style={{ background: 'var(--surface-tint)', color: 'var(--text-secondary)' }}
+                >
+                  {(u.email ?? u.id).charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
+                    {u.email}
+                  </p>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    {u.role}
+                    {u.createdAt ? ` · Joined ${formatDate(u.createdAt)}` : ''}
+                  </p>
+                </div>
+                <button
+                  onClick={() => onEdit(u)}
+                  className="text-xs px-2 py-1 rounded-lg font-semibold transition-colors inline-flex items-center gap-1"
+                  style={{ background: 'var(--surface-tint)', color: 'var(--text-secondary)' }}
+                >
+                  <Pencil size={12} strokeWidth={1.75} />
+                  Edit
+                </button>
               </div>
             ))}
           </div>

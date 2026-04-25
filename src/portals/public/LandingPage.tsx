@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { where } from 'firebase/firestore'
 import {
   Activity,
   ArrowRight,
@@ -20,6 +21,8 @@ import {
   Loader2,
 } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
+import { useFirestoreCollection } from '../../hooks/useFirestoreCollection'
+import type { Doctor, Hospital, MRISlot } from '../../types'
 
 const careCategories = [
   {
@@ -94,6 +97,10 @@ const demoQueries = [
     reason: 'An imaging scan can help a provider rule out an injury. Three hospitals have scan slots open today.',
   },
 ]
+
+function formatCount(count: number) {
+  return new Intl.NumberFormat('en-US').format(count)
+}
 
 function Logo({ size = 32 }: { size?: number }) {
   return (
@@ -254,6 +261,38 @@ function LiveDemo() {
 
 export default function LandingPage() {
   const [scrolled, setScrolled] = useState(false)
+  const { data: approvedHospitals } = useFirestoreCollection<Hospital>('hospitals', [where('status', '==', 'approved')])
+  const { data: doctors } = useFirestoreCollection<Doctor>('doctors', [])
+  const { data: scanSlots } = useFirestoreCollection<MRISlot>('mri_slots', [where('available', '==', true)])
+
+  const verifiedDoctors = doctors.filter((doctor) => doctor.verified).length
+  const liveErHospitals = approvedHospitals.filter((hospital) => hospital.er_status && hospital.er_status !== 'closed').length
+  const stats = [
+    {
+      icon: Shield,
+      label: 'NPPES verified',
+      val: formatCount(verifiedDoctors),
+      body: 'Verified doctor profiles currently available in NowCare.',
+    },
+    {
+      icon: Building2,
+      label: 'Approved hospitals',
+      val: formatCount(approvedHospitals.length),
+      body: 'Hospitals approved and available from the live NowCare database.',
+    },
+    {
+      icon: Activity,
+      label: 'Live ER status',
+      val: formatCount(liveErHospitals),
+      body: 'Approved hospitals currently posting an open ER status.',
+    },
+    {
+      icon: Scan,
+      label: 'Open scan slots',
+      val: formatCount(scanSlots.length),
+      body: 'MRI, CT, X-ray, and ultrasound slots currently marked available.',
+    },
+  ]
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 30)
@@ -414,12 +453,7 @@ export default function LandingPage() {
         <div className="glass-card-elevated relative mx-auto max-w-6xl overflow-hidden p-8 md:p-10">
           <div aria-hidden className="absolute inset-0 opacity-40" style={{ background: 'linear-gradient(135deg, var(--accent-teal-glow), transparent 30%, hsla(265,70%,65%,0.08))' }} />
           <div className="relative grid gap-6 md:grid-cols-4">
-            {[
-              { icon: Shield, label: 'NPPES verified', val: '2.4M+', body: 'Every doctor cross-checked against the public NPI Registry.' },
-              { icon: Building2, label: 'CMS hospital data', val: '6,090', body: "Hospital General Information from Medicare's public dataset." },
-              { icon: Activity, label: 'Live ER status', val: 'Real-time', body: 'Wait status posted directly by hospital staff.' },
-              { icon: Scan, label: 'Open scan slots', val: '<2 min', body: 'MRI, CT, X-ray, and ultrasound slots shown in real time.' },
-            ].map((item) => (
+            {stats.map((item) => (
               <div key={item.label} className="border-[var(--border-subtle)] md:border-r md:pr-6 last:border-0">
                 <div className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
                   <item.icon size={16} strokeWidth={1.75} className="text-[var(--accent-teal)]" />
