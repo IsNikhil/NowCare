@@ -125,7 +125,7 @@ export default function PatientSignupForm() {
       />
 
       <div className="glass-1 rounded-2xl p-4">
-        <p className="text-sm font-semibold text-ink-800 mb-3 flex items-center gap-2">
+        <p className="text-sm font-semibold mb-3 flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
           <MapPin size={16} strokeWidth={1.75} className="text-teal-500" />
           Your location
         </p>
@@ -133,8 +133,8 @@ export default function PatientSignupForm() {
         {locationLabel ? (
           <div className="flex items-center gap-2 mb-3">
             <CheckCircle2 size={16} strokeWidth={1.75} className="text-emerald-500 shrink-0" />
-            <span className="text-sm text-ink-800 font-medium">Location detected</span>
-            <span className="text-xs text-slate-400 ml-auto">{locationLabel}</span>
+            <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Location detected</span>
+            <span className="text-xs ml-auto" style={{ color: 'var(--text-muted)' }}>{locationLabel}</span>
           </div>
         ) : null}
 
@@ -142,7 +142,7 @@ export default function PatientSignupForm() {
           type="button"
           onClick={detectLocation}
           disabled={locating}
-          className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-teal-200 bg-teal-50 text-teal-700 text-sm font-medium hover:bg-teal-100 transition-colors disabled:opacity-60"
+          className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-[var(--accent-teal)] bg-[var(--surface-tint)] text-[var(--accent-teal)] text-sm font-medium hover:opacity-80 transition-opacity disabled:opacity-60"
         >
           {locating
             ? <><Loader2 size={15} strokeWidth={1.75} className="animate-spin" /> Detecting location...</>
@@ -153,7 +153,7 @@ export default function PatientSignupForm() {
         {locationError && (
           <p className="text-xs text-rose-500 mt-2">{locationError}</p>
         )}
-        <p className="text-xs text-slate-400 mt-2">Optional — used to find providers near you. You can set it later from the providers page.</p>
+        <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>Optional — used to find providers near you. You can set it later from the providers page.</p>
       </div>
 
       <Button type="submit" loading={isSubmitting} fullWidth className="!rounded-lg mt-2">

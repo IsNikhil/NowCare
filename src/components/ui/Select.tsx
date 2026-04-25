@@ -32,7 +32,7 @@ export function Select({
         <select
           id={inputId}
           className={[
-            'w-full h-11 rounded-2xl px-4 pr-10 text-sm text-ink-800 appearance-none',
+            'w-full h-11 rounded-2xl px-4 pr-10 text-sm appearance-none',
             'bg-[var(--bg-glass)] text-[var(--text-primary)] backdrop-blur-md',
             'border transition-all duration-150',
             error
