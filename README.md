@@ -1,31 +1,35 @@
-# NowCare
+# NowCare 🏥
 AI-Powered Healthcare Navigation Platform
+
+Built for LionHacks 2026 (GDG on Campus SELU)
 
 ---
 
-## Overview
+## 🚀 Overview
 
 NowCare is a real-time healthcare navigation platform that helps patients:
 
-- Understand what level of care they need using AI symptom assessment (Gemini)
+- Understand what level of care they need using AI triage (Gemini)
 - Find nearby hospitals and doctors with live availability
-- View ER status, scan slots, and doctor availability in real time
+- View ER status, MRI slots, and doctor availability in real time
 - Generate pre-visit summaries for doctors
-- Track full assessment history
+- Track full care journeys
+
+It acts as a "GPS for healthcare".
 
 ---
 
 ## 🧠 Core Features
 
-### Patient Portal
+### 👤 Patient Portal
 - Symptom input (text / voice)
-- AI assessment — six fixed care categories, never a diagnosis
+- AI triage (ER / urgent / telehealth / wait)
 - Nearby providers on Google Maps
 - Pre-visit medical summary
 
-### Hospital Portal
+### 🏥 Hospital Portal
 - ER status updates (Low / Moderate / High / Closed)
-- Scan slot management (MRI, CT, X-Ray, Ultrasound)
+- MRI slot management
 - CMS-backed hospital verification
 
 ### 👨‍⚕️ Doctor Portal
@@ -44,7 +48,7 @@ NowCare is a real-time healthcare navigation platform that helps patients:
 - React + TypeScript
 - Vite
 - Firebase Auth + Firestore + Hosting
-- Gemini API (AI symptom assessment + document analysis + summaries)
+- Gemini API (AI triage + summaries)
 - Google Maps JavaScript API
 - CMS + NPPES APIs (government healthcare data)
 
@@ -99,6 +103,6 @@ We use a simple feature-branch workflow:
 
 ## 📁 Project Structure
 
-The project is organized into a clean, scalable architecture with empty scaffold files ready for development:
+## 🔧 Deployed Link
 
-All folders contain empty scaffold files, so you can start implementing features immediately without worrying about project structure!
+nowcare.vercel.app
