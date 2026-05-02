@@ -19,8 +19,7 @@ export default function HospitalSignupLanding() {
         <Card level={2} padding="lg">
           <div className="text-center mb-8">
             <Building2 size={40} strokeWidth={1.75} className="text-teal-500 mx-auto mb-4" />
-            <h1 className="text-2xl font-bold text-ink-800 tracking-tight">Register your hospital</h1>
-            <p className="text-slate-500 mt-2">Publish live ER status and imaging availability to patients in your area.</p>
+            <h1 className="text-2xl font-bold text-ink-800 tracking-tight">List your hospital on NowCare</h1>
           </div>
           <div className="space-y-4 mb-8">
             {[

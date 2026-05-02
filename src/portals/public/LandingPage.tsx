@@ -321,7 +321,6 @@ export default function LandingPage() {
               <span className="inline-flex items-center gap-1 rounded-full bg-[var(--accent-teal-glow)] px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-[var(--accent-teal)]">
                 <Sparkles size={11} strokeWidth={1.75} /> AI
               </span>
-              <span className="text-xs font-medium text-[var(--text-secondary)]">AI-powered healthcare navigation</span>
             </div>
 
             <h1 className="mb-6 max-w-3xl text-[clamp(44px,6vw,84px)] font-black leading-none tracking-[-0.035em] text-[var(--text-primary)]">
@@ -345,18 +344,6 @@ export default function LandingPage() {
               </Link>
             </div>
 
-            <div className="mt-9 flex flex-wrap gap-6">
-              {[
-                { icon: Shield, label: 'NPPES verified providers' },
-                { icon: Activity, label: 'Live ER status' },
-                { icon: Scan, label: 'Real-time scan slots' },
-              ].map((item) => (
-                <div key={item.label} className="flex items-center gap-2 text-sm font-medium text-[var(--text-muted)]">
-                  <item.icon size={14} strokeWidth={1.75} className="text-[var(--accent-teal)]" />
-                  {item.label}
-                </div>
-              ))}
-            </div>
           </div>
 
           <LiveDemo />
@@ -507,9 +494,6 @@ export default function LandingPage() {
                 <Button variant="secondary" size="lg">Sign in</Button>
               </Link>
             </div>
-            <p className="mt-6 text-xs italic text-[var(--text-muted)]">
-              NowCare provides care navigation only. We do not diagnose, prescribe, or replace professional medical advice.
-            </p>
           </div>
         </div>
       </section>

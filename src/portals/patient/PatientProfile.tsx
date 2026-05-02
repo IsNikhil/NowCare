@@ -259,7 +259,6 @@ export default function PatientProfile() {
 
             <div className="min-w-0 flex-1">
               <p className="break-words text-xl sm:text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text-primary)' }}>{displayName}</p>
-              <p className="mt-1 text-sm" style={{ color: 'var(--text-muted)' }}>{user?.email}</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {[
                   patient?.age ? `${patient.age} years old` : 'Age not set',

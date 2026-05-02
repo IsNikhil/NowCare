@@ -34,7 +34,12 @@ export default function PreVisitSummary() {
     started.current = true
     let cancelled = false
     setGenerating(true)
-    generateSummary(journey.symptoms, journey.triage_result, { age: (patient as any).age, gender: (patient as any).gender })
+    generateSummary(journey.symptoms, journey.triage_result, {
+      age: (patient as any).age,
+      gender: (patient as any).gender,
+      height: (patient as any).height,
+      weight: (patient as any).weight,
+    })
       .then(async (text) => {
         if (cancelled) return
         setGeneratedSummary(text)

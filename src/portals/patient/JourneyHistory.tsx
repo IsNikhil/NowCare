@@ -96,7 +96,6 @@ function EventCard({
     const cfg = cat ? CARE_CATEGORY_CONFIG[cat] : null
     const color = cfg?.color ?? 'var(--accent-teal)'
     const resultChips = [
-      cat ? cfg?.label ?? titleCase(cat) : null,
       journey.triage_result?.urgency ? titleCase(journey.triage_result.urgency) : null,
       journey.triage_result?.recommended_specialty,
       journey.triage_result?.scan_type,
@@ -225,7 +224,6 @@ function AssessmentDetail({ journey }: { journey: CareJourney }) {
   const cfg = cat ? CARE_CATEGORY_CONFIG[cat] : null
   const color = cfg?.color ?? 'var(--accent-teal)'
   const savedResultRows = [
-    { label: 'Care category', value: cat ? `${cfg?.label ?? titleCase(cat)} (${cat})` : null },
     { label: 'Urgency', value: journey.triage_result?.urgency ? titleCase(journey.triage_result.urgency) : null },
     { label: 'Specialty', value: journey.triage_result?.recommended_specialty },
     { label: 'Scan type', value: journey.triage_result?.scan_type },
@@ -465,9 +463,7 @@ export default function JourneyHistory() {
   ]
 
   const stats = [
-    { label: 'Assessments', value: journeys.length, color: 'var(--accent-teal)' },
     { label: 'Results saved', value: journeys.filter((j) => Boolean(j.triage_result)).length, color: 'var(--accent-teal-2)' },
-    { label: 'Documents', value: documents.length, color: 'var(--accent-violet)' },
     {
       label: 'Needs attention',
       value:
@@ -493,7 +489,7 @@ export default function JourneyHistory() {
         </Button>
       </motion.div>
 
-      <motion.div variants={fadeRise} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <motion.div variants={fadeRise} className="grid gap-3 sm:grid-cols-2">
         {stats.map((stat) => (
           <GlassCard key={stat.label} className="p-4">
             <p className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{stat.label}</p>

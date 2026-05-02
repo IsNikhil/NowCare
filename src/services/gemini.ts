@@ -2,6 +2,9 @@ import { GoogleGenAI } from '@google/genai'
 import type { TriageResult, DocumentAnalysis } from '../types'
 import type { CareCategory, Urgency } from '../lib/careCategories'
 import { PRODUCT_KNOWLEDGE } from '../lib/productKnowledge'
+import { SPECIALTIES } from '../lib/specialties'
+
+const SPECIALTY_IDS = SPECIALTIES.map((s) => s.id)
 
 const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY as string })
 
@@ -30,7 +33,7 @@ Rules:
 3. NEVER suggest a specific medication, dose, or diagnosis.
 4. ALWAYS include red_flags with symptoms that should escalate to ER if they appear.
 5. If symptoms are vague, default to a more cautious category (e.g., URGENT_TODAY over SELF_CARE).
-6. recommended_specialty must be one of: internal_medicine, family_medicine, pediatrics, cardiology, neurology, dermatology, dentistry, obgyn, psychiatry, ophthalmology, ent, urology, gastroenterology, orthopedics, pulmonology, emergency_medicine. Omit if uncertain.
+6. recommended_specialty must be one of: ${SPECIALTY_IDS.join(', ')}. Omit if uncertain.
 7. scan_type is required ONLY when care_category is SCAN_NEEDED.
 
 Schema:
@@ -62,12 +65,24 @@ export async function triage(
       config: {
         systemInstruction: ASSESSMENT_SYSTEM,
         temperature: 0.2,
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: 'object',
+          properties: {
+            care_category: { type: 'string', enum: ['ER_NOW', 'URGENT_TODAY', 'SCAN_NEEDED', 'TELEHEALTH', 'SCHEDULE_DOCTOR', 'SELF_CARE'] },
+            urgency: { type: 'string', enum: ['immediate', 'soon', 'routine'] },
+            recommended_specialty: { type: 'string', enum: SPECIALTY_IDS, nullable: true },
+            scan_type: { type: 'string', enum: ['MRI', 'CT', 'X-Ray', 'Ultrasound'], nullable: true },
+            short_reasoning: { type: 'string' },
+            red_flags: { type: 'array', items: { type: 'string' } },
+            what_to_expect: { type: 'string' },
+          },
+          required: ['care_category', 'urgency', 'short_reasoning', 'red_flags', 'what_to_expect'],
+        },
       },
     })
 
-    const raw = response.text ?? ''
-    const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
-    const parsed = JSON.parse(cleaned) as TriageResult
+    const parsed = JSON.parse(response.text ?? '{}') as TriageResult
 
     if (
       !VALID_CATEGORIES.includes(parsed.care_category) ||
@@ -201,10 +216,15 @@ Schema:
 export async function generatePreVisitSummary(
   symptoms: string,
   triageResult: TriageResult,
-  patientContext: { age: number; gender: string }
+  patientContext: { age: number; gender: string; height?: string; weight?: string }
 ): Promise<string> {
   try {
-    const userMessage = `Patient: ${patientContext.age} year old ${patientContext.gender}.
+    const vitals = [
+      patientContext.height ? `Height: ${patientContext.height}` : null,
+      patientContext.weight ? `Weight: ${patientContext.weight}` : null,
+    ].filter(Boolean).join(', ')
+
+    const userMessage = `Patient: ${patientContext.age} year old ${patientContext.gender}${vitals ? `. ${vitals}` : ''}.
 Reported symptoms: ${symptoms}.
 Triage classification: ${triageResult.care_category}, urgency: ${triageResult.urgency}.
 Triage reasoning: ${triageResult.short_reasoning}.
@@ -300,7 +320,7 @@ export async function helpBotChat(
 export async function summary(
   symptoms: string,
   triageResult: TriageResult,
-  patientContext: { age: number; gender: string }
+  patientContext: { age: number; gender: string; height?: string; weight?: string }
 ): Promise<string> {
   return generatePreVisitSummary(symptoms, triageResult, patientContext)
 }

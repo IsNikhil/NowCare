@@ -195,17 +195,7 @@ export default function HospitalDashboard() {
       </motion.div>
 
       {/* Quick stats */}
-      <motion.div variants={fadeRise} className="grid grid-cols-2 md:grid-cols-3 gap-3">
-        <GlassCard className="p-4">
-          <div className="w-8 h-8 rounded-xl flex items-center justify-center mb-2" style={{ background: `${currentCfg.color}18`, color: currentCfg.color }}>
-            <Activity size={15} strokeWidth={1.75} />
-          </div>
-          <p className="text-xl font-extrabold font-mono" style={{ color: 'var(--text-primary)' }}>
-            {currentCfg.label}
-          </p>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Current ER status</p>
-        </GlassCard>
-
+      <motion.div variants={fadeRise} className="grid grid-cols-2 gap-3">
         <GlassCard className="p-4">
           <div className="w-8 h-8 rounded-xl flex items-center justify-center mb-2" style={{ background: 'hsla(265,70%,65%,0.1)', color: 'var(--accent-violet)' }}>
             <HardDrive size={15} strokeWidth={1.75} />
@@ -216,7 +206,7 @@ export default function HospitalDashboard() {
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Scan slots open</p>
         </GlassCard>
 
-        <GlassCard className="p-4 col-span-2 md:col-span-1">
+        <GlassCard className="p-4">
           <div className="w-8 h-8 rounded-xl flex items-center justify-center mb-2" style={{ background: 'var(--accent-teal-glow)', color: 'var(--accent-teal)' }}>
             <TrendingUp size={15} strokeWidth={1.75} />
           </div>

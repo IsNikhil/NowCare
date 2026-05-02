@@ -104,9 +104,6 @@ export default function PatientHome() {
             style={{ background: `conic-gradient(var(--accent-teal) 0deg, transparent 120deg, transparent 360deg)` }} />
 
           <div className="relative z-10">
-            <p className="text-sm font-semibold mb-1" style={{ color: 'var(--accent-teal)' }}>
-              Good day
-            </p>
             <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight mb-1" style={{ color: 'var(--text-primary)' }}>
               Hello, {firstName}
             </h1>

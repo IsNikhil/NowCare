@@ -1,4 +1,4 @@
-import { useRef, useState, useMemo } from 'react'
+import { useRef, useState, useMemo, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { where, orderBy, doc, setDoc, updateDoc, addDoc, collection, serverTimestamp, Timestamp } from 'firebase/firestore'
 import { motion } from 'framer-motion'
@@ -23,7 +23,7 @@ import { CARE_CATEGORY_CONFIG } from '../../lib/careCategories'
 import { getSpecialtyLabel, SPECIALTIES } from '../../lib/specialties'
 import { INSURANCE_CARRIERS } from '../../lib/insuranceCarriers'
 import { doctorAvatars } from '../../lib/imageAssets'
-import { formatDate, formatTime } from '../../lib/format'
+import { formatDate, formatTime, formatDistance } from '../../lib/format'
 import { fadeRise, stagger } from '../../lib/motion'
 import { haversine } from '../../lib/haversine'
 import type { Patient, Hospital, Doctor, DoctorSlot, MRISlot, WithId, CareCategory } from '../../types'
@@ -395,6 +395,16 @@ function HospitalActionSheet({ hospital, patientId, open, onClose }: {
     open ? [where('hospitalId', '==', hospital.id), where('available', '==', true),
       where('datetime', '>=', Timestamp.fromDate(now)), orderBy('datetime', 'asc')] : []
   )
+  const [scanTypeFilter, setScanTypeFilter] = useState<string>('All')
+
+  const scanTypes = useMemo(() => {
+    const types = Array.from(new Set(scanSlots.map((s) => s.type))).sort()
+    return ['All', ...types]
+  }, [scanSlots])
+
+  const visibleSlots = scanTypeFilter === 'All'
+    ? scanSlots
+    : scanSlots.filter((s) => s.type === scanTypeFilter)
 
   async function handleBookScan(slot: WithId<MRISlot>) {
     setBookingSlotId(slot.id)
@@ -460,14 +470,41 @@ function HospitalActionSheet({ hospital, patientId, open, onClose }: {
             <CalendarPlus size={15} strokeWidth={1.75} style={{ color: 'var(--accent-teal)' }} />
             <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Available scan appointments</h3>
           </div>
+          {!loading && scanTypes.length > 1 && (
+            <div className="mb-3 flex gap-1.5 overflow-x-auto pb-0.5">
+              {scanTypes.map((type) => {
+                const active = scanTypeFilter === type
+                return (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => setScanTypeFilter(type)}
+                    className="shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition-all"
+                    style={{
+                      background: active ? 'var(--accent-teal)' : 'var(--surface-tint)',
+                      color: active ? '#fff' : 'var(--text-secondary)',
+                      border: `1px solid ${active ? 'var(--accent-teal)' : 'var(--border-subtle)'}`,
+                    }}
+                  >
+                    {type}
+                  </button>
+                )
+              })}
+            </div>
+          )}
           {loading && <div className="py-6 text-center text-sm" style={{ color: 'var(--text-muted)' }}>Loading slots...</div>}
           {!loading && scanSlots.length === 0 && (
             <div className="rounded-2xl border p-4 text-sm" style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-secondary)' }}>
               No open scan slots are published right now. Call or email the hospital to request availability.
             </div>
           )}
+          {!loading && scanSlots.length > 0 && visibleSlots.length === 0 && (
+            <div className="rounded-2xl border p-4 text-sm" style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-secondary)' }}>
+              No {scanTypeFilter} slots available right now.
+            </div>
+          )}
           <div className="space-y-2">
-            {scanSlots.slice(0, 8).map((slot) => (
+            {visibleSlots.slice(0, 8).map((slot) => (
               <div key={slot.id} className="flex items-center justify-between gap-3 rounded-xl border p-3"
                 style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-tint)' }}>
                 <div>
@@ -507,14 +544,36 @@ function HospitalActionSheet({ hospital, patientId, open, onClose }: {
 
 // ─── Doctor card ──────────────────────────────────────────────────────────────
 
-function DoctorCard({ d, onBook }: { d: WithId<Doctor>; onBook: () => void }) {
+function DoctorCard({ d, onBook, onFocusMap, selected }: {
+  d: WithId<Doctor>
+  onBook: () => void
+  onFocusMap?: () => void
+  selected?: boolean
+}) {
   const docName = d.npi_data?.name ?? d.name ?? d.displayName ?? 'Provider'
   const avatar = doctorAvatars[d.id]
   const initial = docName.replace(/^Dr\.\s*/i, '').charAt(0).toUpperCase()
   const email = (d as WithId<Doctor> & { email?: string }).email ?? ''
 
   return (
-    <GlassCard variant="interactive" className="p-5">
+    <GlassCard
+      variant="interactive"
+      className="relative p-5 cursor-pointer transition-all"
+      onClick={onFocusMap}
+      role={onFocusMap ? 'button' : undefined}
+      tabIndex={onFocusMap ? 0 : undefined}
+      onKeyDown={(e) => {
+        if (!onFocusMap) return
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onFocusMap() }
+      }}
+    >
+      <div
+        className="pointer-events-none absolute inset-0 rounded-[inherit] transition-opacity"
+        style={{
+          opacity: selected ? 1 : 0,
+          boxShadow: 'inset 0 0 0 1px var(--accent-teal), 0 0 32px -18px var(--accent-teal)',
+        }}
+      />
       <div className="flex items-start gap-3 mb-3">
         {avatar ? (
           <img src={avatar} alt={docName} className="w-12 h-12 rounded-2xl object-cover shrink-0" />
@@ -537,6 +596,7 @@ function DoctorCard({ d, onBook }: { d: WithId<Doctor>; onBook: () => void }) {
           </div>
           {email && (
             <a href={`mailto:${email}`} className="text-xs flex items-center gap-1 mt-1 hover:underline"
+              onClick={(e) => e.stopPropagation()}
               style={{ color: 'var(--text-muted)' }}>
               <Mail size={11} strokeWidth={1.75} />
               {email}
@@ -553,12 +613,12 @@ function DoctorCard({ d, onBook }: { d: WithId<Doctor>; onBook: () => void }) {
         </p>
       )}
       <div className="flex gap-2 flex-wrap">
-        <Button size="sm" onClick={onBook}>
+        <Button size="sm" onClick={(e) => { e.stopPropagation(); onBook() }}>
           <Calendar size={13} strokeWidth={1.75} />
           Book appointment
         </Button>
         {email && (
-          <Button variant="secondary" size="sm" as="a" href={`mailto:${email}`}>
+          <Button variant="secondary" size="sm" as="a" href={`mailto:${email}`} onClick={(e: React.MouseEvent) => e.stopPropagation()}>
             <Mail size={13} strokeWidth={1.75} />
             Contact
           </Button>
@@ -757,6 +817,14 @@ export default function ProviderResultsPage() {
     setActiveTab('map')
   }
 
+  function focusDoctorOnMap(doctor: WithId<Doctor>) {
+    if (!doctor.lat || !doctor.lng) return
+    setFocusedMarkerId(doctor.id)
+    setFocusVersion((v) => v + 1)
+    setMapCenter({ lat: doctor.lat, lng: doctor.lng })
+    setActiveTab('map')
+  }
+
   function handleMarkerSelect(marker: MapMarker) {
     setFocusedMarkerId(marker.id)
     if (marker.kind === 'hospital') {
@@ -772,13 +840,40 @@ export default function ProviderResultsPage() {
 
   const selectedHospital = focusedMarkerId ? hospitals.find((h) => h.id === focusedMarkerId) : null
 
-  const insuranceCarrier = INSURANCE_CARRIERS.find((c) => c.id === selectedInsurance)
-  const selectedDistanceLabel = DISTANCE_OPTIONS.find((option) => option.value === distanceFilter)?.label ?? 'Nearest first'
-  const filterLabel = selectedCategory
-    ? CARE_CATEGORY_CONFIG[selectedCategory].label
-    : selectedSpecialty
-      ? getSpecialtyLabel(selectedSpecialty)
-      : 'All specialties/categories'
+  const [travelInfo, setTravelInfo] = useState<{ distance: string; duration: string } | null>(null)
+  const [travelLoading, setTravelLoading] = useState(false)
+
+  useEffect(() => {
+    if (!selectedHospital?.lat || !selectedHospital?.lng || !effectiveLat || !effectiveLng) {
+      setTravelInfo(null)
+      return
+    }
+    if (!window.google?.maps?.DistanceMatrixService) {
+      setTravelInfo(null)
+      return
+    }
+    setTravelLoading(true)
+    setTravelInfo(null)
+    const svc = new window.google.maps.DistanceMatrixService()
+    svc.getDistanceMatrix(
+      {
+        origins: [{ lat: effectiveLat, lng: effectiveLng }],
+        destinations: [{ lat: selectedHospital.lat, lng: selectedHospital.lng }],
+        travelMode: window.google.maps.TravelMode.DRIVING,
+        drivingOptions: { departureTime: new Date() },
+      },
+      (response, status) => {
+        setTravelLoading(false)
+        if (status === 'OK' && response?.rows[0]?.elements[0]?.status === 'OK') {
+          const el = response.rows[0].elements[0]
+          setTravelInfo({
+            distance: el.distance.text,
+            duration: el.duration_in_traffic?.text ?? el.duration.text,
+          })
+        }
+      }
+    )
+  }, [selectedHospital?.id, effectiveLat, effectiveLng])
 
   return (
     <motion.div variants={stagger} initial="initial" animate="animate" className="mx-auto max-w-7xl overflow-hidden">
@@ -790,9 +885,6 @@ export default function ProviderResultsPage() {
               {title}
             </h1>
             <div className="flex items-center gap-3 flex-wrap mt-1">
-              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                {filteredDoctors.length} doctor{filteredDoctors.length !== 1 ? 's' : ''} · {hospitals.length} hospital{hospitals.length !== 1 ? 's' : ''}
-              </p>
               <button
                 onClick={handleLocate}
                 disabled={locating}
@@ -810,11 +902,6 @@ export default function ProviderResultsPage() {
               </button>
             </div>
           </div>
-          {categoryConfig && (
-            <Badge variant={selectedCategory === 'ER_NOW' ? 'danger' : selectedCategory === 'URGENT_TODAY' ? 'warning' : 'teal'}>
-              {categoryConfig.label}
-            </Badge>
-          )}
         </div>
       </motion.div>
 
@@ -938,23 +1025,6 @@ export default function ProviderResultsPage() {
             </label>
           </div>
 
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <Badge variant="teal">{filterLabel}</Badge>
-            <Badge variant={selectedInsurance ? 'violet' : 'default'}>{insuranceCarrier?.display_name ?? 'All insurance'}</Badge>
-            <Badge variant={distanceFilter === 'nearest' ? 'default' : 'info'}>{selectedDistanceLabel}</Badge>
-            {!effectiveLat && (
-              <button
-                type="button"
-                onClick={handleLocate}
-                disabled={locating}
-                className="inline-flex items-center gap-1 text-xs font-semibold hover:underline"
-                style={{ color: 'var(--accent-teal)' }}
-              >
-                {locating ? <Loader2 size={11} className="animate-spin" /> : <LocateFixed size={11} />}
-                Set location for distance
-              </button>
-            )}
-          </div>
         </GlassCard>
       </motion.div>
 
@@ -1054,11 +1124,6 @@ export default function ProviderResultsPage() {
                   style={{ background: 'var(--surface-tint)', color: 'var(--text-muted)' }}>
                   {filteredDoctors.length}
                 </span>
-                {selectedInsurance && (
-                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                    · {insuranceCarrier?.display_name}
-                  </span>
-                )}
               </div>
 
               {filteredDoctors.length === 0 && (
@@ -1098,7 +1163,12 @@ export default function ProviderResultsPage() {
                       <motion.div variants={stagger} className="space-y-3">
                         {docs.map((d, i) => (
                           <motion.div key={d.id} variants={fadeRise} style={{ transitionDelay: `${i * 30}ms` }}>
-                            <DoctorCard d={d} onBook={() => setBookingDoctor(d)} />
+                            <DoctorCard
+                              d={d}
+                              onBook={() => setBookingDoctor(d)}
+                              onFocusMap={d.lat && d.lng ? () => focusDoctorOnMap(d) : undefined}
+                              selected={focusedMarkerId === d.id}
+                            />
                           </motion.div>
                         ))}
                       </motion.div>
@@ -1112,7 +1182,12 @@ export default function ProviderResultsPage() {
                 <motion.div variants={stagger} className="space-y-3">
                   {filteredDoctors.map((d, i) => (
                     <motion.div key={d.id} variants={fadeRise} style={{ transitionDelay: `${i * 30}ms` }}>
-                      <DoctorCard d={d} onBook={() => setBookingDoctor(d)} />
+                      <DoctorCard
+                        d={d}
+                        onBook={() => setBookingDoctor(d)}
+                        onFocusMap={d.lat && d.lng ? () => focusDoctorOnMap(d) : undefined}
+                        selected={focusedMarkerId === d.id}
+                      />
                     </motion.div>
                   ))}
                 </motion.div>
@@ -1137,36 +1212,41 @@ export default function ProviderResultsPage() {
             </div>
             {selectedHospital && (
               <GlassCard className="mt-3 p-4">
-                <div className="flex items-start gap-3">
+                <div className="flex items-center gap-3">
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: 'var(--accent-teal-glow)', color: 'var(--accent-teal)' }}>
                     <Building2 size={16} strokeWidth={1.75} />
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{hospitalName(selectedHospital)}</p>
-                    <p className="truncate text-xs" style={{ color: 'var(--text-muted)' }}>{hospitalAddress(selectedHospital)}</p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {selectedHospital.lat && selectedHospital.lng && (
-                        <Button size="sm" as="a" href={directionsUrl(selectedHospital.lat, selectedHospital.lng, hospitalAddress(selectedHospital))} target="_blank" rel="noopener noreferrer">
-                          <Navigation size={13} strokeWidth={1.75} />
-                          Directions
-                        </Button>
+                    <p className="truncate text-xs mb-2" style={{ color: 'var(--text-muted)' }}>{hospitalAddress(selectedHospital)}</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {(() => {
+                        const distKm = getDistanceKm(selectedHospital, effectiveLat, effectiveLng)
+                        return distKm != null ? (
+                          <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold"
+                            style={{ background: 'var(--surface-tint)', color: 'var(--text-secondary)' }}>
+                            <MapPin size={11} strokeWidth={1.75} />
+                            {travelInfo ? travelInfo.distance : formatDistance(distKm)}
+                          </span>
+                        ) : null
+                      })()}
+                      {travelLoading && (
+                        <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold"
+                          style={{ background: 'var(--surface-tint)', color: 'var(--text-muted)' }}>
+                          <Loader2 size={11} strokeWidth={1.75} className="animate-spin" />
+                          Estimating…
+                        </span>
                       )}
-                      {hospitalPhone(selectedHospital) && (
-                        <Button size="sm" variant="secondary" as="a" href={`tel:${hospitalPhone(selectedHospital)}`}>
-                          <Phone size={13} strokeWidth={1.75} />
-                          Call
-                        </Button>
+                      {travelInfo && !travelLoading && (
+                        <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold"
+                          style={{ background: 'var(--accent-teal-glow)', color: 'var(--accent-teal)' }}>
+                          <Clock size={11} strokeWidth={1.75} />
+                          {travelInfo.duration} drive
+                        </span>
                       )}
-                      {hospitalEmail(selectedHospital) && (
-                        <Button size="sm" variant="secondary" as="a" href={`mailto:${hospitalEmail(selectedHospital)}?subject=${contactSubject(hospitalName(selectedHospital))}&body=${contactBody(hospitalName(selectedHospital))}`}>
-                          <Mail size={13} strokeWidth={1.75} />
-                          Email
-                        </Button>
+                      {!travelInfo && !travelLoading && effectiveLat && (
+                        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>No route estimate</span>
                       )}
-                      <Button size="sm" variant="secondary" onClick={() => setActionHospital(selectedHospital)}>
-                        <CalendarPlus size={13} strokeWidth={1.75} />
-                        Appointments
-                      </Button>
                     </div>
                   </div>
                 </div>

@@ -69,6 +69,8 @@ export default function PatientSignupForm() {
       })
 
       const patientDoc: Record<string, unknown> = { uid, age: data.age, gender: data.gender }
+      if (data.height) patientDoc.height = data.height
+      if (data.weight) patientDoc.weight = data.weight
       if (data.lat != null && data.lng != null) {
         patientDoc.lat = data.lat
         patientDoc.lng = data.lng
@@ -123,6 +125,22 @@ export default function PatientSignupForm() {
         error={errors.gender?.message}
         {...register('gender')}
       />
+      <div className="grid grid-cols-2 gap-3">
+        <Input
+          label="Height (optional)"
+          type="text"
+          placeholder="e.g. 5ft 10in or 178 cm"
+          error={errors.height?.message}
+          {...register('height')}
+        />
+        <Input
+          label="Weight (optional)"
+          type="text"
+          placeholder="e.g. 165 lbs or 75 kg"
+          error={errors.weight?.message}
+          {...register('weight')}
+        />
+      </div>
 
       <div className="glass-1 rounded-2xl p-4">
         <p className="text-sm font-semibold mb-3 flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>

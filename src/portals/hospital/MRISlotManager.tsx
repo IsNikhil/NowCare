@@ -7,7 +7,6 @@ import { db } from '../../services/firebase'
 import { useAuth } from '../../hooks/useAuth'
 import { useFirestoreCollection } from '../../hooks/useFirestoreCollection'
 import { GlassCard } from '../../components/ui/GlassCard'
-import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { SkeletonList } from '../../components/ui/Skeleton'
 import { formatDate, formatTime } from '../../lib/format'
@@ -183,9 +182,6 @@ export default function MRISlotManagerPage() {
                         {formatDate(slot.datetime)} · {formatTime(slot.datetime)}
                       </p>
                     </div>
-                    <Badge variant={slot.available ? 'teal' : 'default'}>
-                      {slot.available ? 'Open' : 'Closed'}
-                    </Badge>
                     <div className="flex items-center gap-1 shrink-0">
                       <button
                         onClick={() => toggleAvailability(slot)}

@@ -43,8 +43,7 @@ export default function PendingApproval() {
               Application not approved
             </h1>
             <p className="text-sm leading-relaxed mb-6" style={{ color: 'var(--text-secondary)' }}>
-              Your hospital application for <strong>{hospital.name}</strong> was not approved.
-              Please contact us for more information.
+              Contact us for more information about your <strong>{hospital.name}</strong> application.
             </p>
             <a
               href="mailto:support@nowcare.app"

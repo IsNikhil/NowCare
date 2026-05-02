@@ -135,7 +135,7 @@ export default function Assess() {
             How are you feeling?
           </h1>
           <p className="text-base" style={{ color: 'var(--text-secondary)' }}>
-            Describe your symptoms in plain language. We will recommend the right level of care.
+            We will recommend the right level of care.
           </p>
         </motion.div>
 

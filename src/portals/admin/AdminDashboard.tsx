@@ -82,13 +82,11 @@ function optionalNumber(value: string) {
 // ─── Overview Panel ─────────────────────────────────────────────────────────
 
 function OverviewPanel({
-  pending, approved, doctors, patients,
+  pending, approved,
   onApprove, onDeny, processing,
 }: {
   pending: (Hospital & { id: string })[]
   approved: (Hospital & { id: string })[]
-  doctors: (Doctor & { id: string })[]
-  patients: AdminPatient[]
   onApprove: (h: Hospital & { id: string }) => void
   onDeny: (h: Hospital & { id: string }) => void
   processing: string | null
@@ -96,13 +94,11 @@ function OverviewPanel({
   const stats = [
     { label: 'Pending review', value: pending.length, icon: <AlertTriangle size={16} strokeWidth={1.75} />, color: 'var(--accent-amber)', urgent: pending.length > 0 },
     { label: 'Approved hospitals', value: approved.length, icon: <Building2 size={16} strokeWidth={1.75} />, color: 'var(--accent-teal)', urgent: false },
-    { label: 'Doctors', value: doctors.length, icon: <Stethoscope size={16} strokeWidth={1.75} />, color: 'var(--accent-violet)', urgent: false },
-    { label: 'Patients', value: patients.length, icon: <Users size={16} strokeWidth={1.75} />, color: 'var(--accent-teal)', urgent: false },
   ]
 
   return (
     <motion.div variants={stagger} initial="initial" animate="animate" className="space-y-6">
-      <motion.div variants={fadeRise} className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <motion.div variants={fadeRise} className="grid grid-cols-2 gap-3">
         {stats.map((s) => (
           <GlassCard key={s.label} className="p-4">
             <div className="flex items-center justify-between mb-3">
@@ -124,7 +120,6 @@ function OverviewPanel({
         <div className="flex items-center gap-2 mb-3">
           <AlertTriangle size={15} strokeWidth={1.75} style={{ color: 'var(--accent-amber)' }} />
           <h2 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Pending Approval</h2>
-          {pending.length > 0 && <Badge variant="warning">{pending.length}</Badge>}
         </div>
 
         {pending.length === 0 ? (
@@ -202,7 +197,6 @@ function OverviewPanel({
           <div className="flex items-center gap-2 mb-3">
             <Activity size={15} strokeWidth={1.75} style={{ color: 'var(--accent-teal)' }} />
             <h2 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Live Hospitals</h2>
-            <Badge variant="teal">{approved.length}</Badge>
           </div>
           <GlassCard>
             <div className="divide-y" style={{ ['--tw-divide-opacity' as string]: 1 }}>
@@ -257,7 +251,7 @@ function HospitalsPanel({
     <motion.div variants={stagger} initial="initial" animate="animate" className="space-y-4">
       <motion.div variants={fadeRise}>
         <h2 className="text-lg font-bold mb-1" style={{ color: 'var(--text-primary)' }}>
-          All Hospitals <span className="text-sm font-normal" style={{ color: 'var(--text-muted)' }}>({all.length})</span>
+          All Hospitals
         </h2>
       </motion.div>
 
@@ -337,7 +331,7 @@ function DoctorsPanel({
     <motion.div variants={stagger} initial="initial" animate="animate" className="space-y-4">
       <motion.div variants={fadeRise}>
         <h2 className="text-lg font-bold mb-1" style={{ color: 'var(--text-primary)' }}>
-          Doctors <span className="text-sm font-normal" style={{ color: 'var(--text-muted)' }}>({doctors.length})</span>
+          Doctors
         </h2>
       </motion.div>
 
@@ -397,7 +391,7 @@ function PatientsPanel({
     <motion.div variants={stagger} initial="initial" animate="animate" className="space-y-4">
       <motion.div variants={fadeRise}>
         <h2 className="text-lg font-bold mb-1" style={{ color: 'var(--text-primary)' }}>
-          Patients <span className="text-sm font-normal" style={{ color: 'var(--text-muted)' }}>({patients.length})</span>
+          Patients
         </h2>
       </motion.div>
 
@@ -459,7 +453,7 @@ function UsersPanel({
     <motion.div variants={stagger} initial="initial" animate="animate" className="space-y-4">
       <motion.div variants={fadeRise}>
         <h2 className="text-lg font-bold mb-1" style={{ color: 'var(--text-primary)' }}>
-          Users <span className="text-sm font-normal" style={{ color: 'var(--text-muted)' }}>({users.length})</span>
+          Users
         </h2>
       </motion.div>
 
@@ -899,8 +893,6 @@ export default function AdminDashboard() {
               <OverviewPanel
                 pending={pending as (Hospital & { id: string })[]}
                 approved={approved as (Hospital & { id: string })[]}
-                doctors={doctors as (Doctor & { id: string })[]}
-                patients={adminPatients}
                 onApprove={handleApprove}
                 onDeny={handleDeny}
                 processing={processing}
