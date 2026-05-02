@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { GoogleMap, MarkerF, InfoWindowF, useJsApiLoader } from '@react-google-maps/api'
 import { MAPS_API_KEY, DEFAULT_MAP_OPTIONS } from '../../services/maps'
 import { LoadingSpinner } from '../ui/LoadingSpinner'
+import { haversine } from '../../lib/haversine'
 
 export type MapMarker = {
   id: string
@@ -20,26 +21,25 @@ type ProviderMapProps = {
   markers: MapMarker[]
   centerLat?: number
   centerLng?: number
+  userLat?: number
+  userLng?: number
   focusedMarkerId?: string | null
   focusVersion?: number
   onMarkerSelect?: (marker: MapMarker) => void
-  onRequestBooking?: (marker: MapMarker) => void
 }
 
 const containerStyle = { width: '100%', height: '100%' }
 
-function directionsUrl(marker: MapMarker) {
-  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${marker.lat},${marker.lng}`)}&destination_place_id=`
-}
 
 export function ProviderMap({
   markers,
   centerLat = 30.5044,
   centerLng = -90.4612,
+  userLat,
+  userLng,
   focusedMarkerId,
   focusVersion = 0,
   onMarkerSelect,
-  onRequestBooking,
 }: ProviderMapProps) {
   const mapRef = useRef<google.maps.Map | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -158,7 +158,7 @@ export function ProviderMap({
             position={{ lat: selectedMarker.lat, lng: selectedMarker.lng }}
             onCloseClick={() => setSelectedId(null)}
           >
-            <div className="p-1 max-w-[240px]">
+            <div className="p-1 max-w-[220px]">
               <p className="font-semibold text-sm text-slate-800 mb-1">{selectedMarker.label}</p>
               {selectedMarker.subtitle && (
                 <p className="text-xs text-teal-700 font-medium mb-1">{selectedMarker.subtitle}</p>
@@ -167,42 +167,25 @@ export function ProviderMap({
                 <p className="text-xs text-slate-500 mb-0.5">{selectedMarker.address}</p>
               )}
               {selectedMarker.phone && (
-                <p className="text-xs text-slate-500 mb-2">{selectedMarker.phone}</p>
+                <p className="text-xs text-slate-500 mb-1">{selectedMarker.phone}</p>
               )}
-              <div className="mt-2 flex flex-wrap gap-1.5">
+              {userLat && userLng && (() => {
+                const distMi = haversine(userLat, userLng, selectedMarker.lat, selectedMarker.lng) * 0.621371
+                return (
+                  <p className="text-xs font-semibold text-teal-700 mt-1">
+                    {distMi < 0.1 ? 'Less than 0.1 mi away' : `${distMi.toFixed(1)} mi away`}
+                  </p>
+                )
+              })()}
+              <div className="mt-2">
                 <a
-                  href={directionsUrl(selectedMarker)}
+                  href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${selectedMarker.lat},${selectedMarker.lng}`)}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="rounded-md bg-teal-600 px-2 py-1 text-[11px] font-semibold text-white"
+                  className="inline-flex items-center gap-1 rounded-md bg-teal-600 px-2.5 py-1 text-[11px] font-semibold text-white"
                 >
-                  Directions
+                  Directions ↗
                 </a>
-                {selectedMarker.phone && (
-                  <a
-                    href={`tel:${selectedMarker.phone}`}
-                    className="rounded-md bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-700"
-                  >
-                    Call
-                  </a>
-                )}
-                {selectedMarker.email && (
-                  <a
-                    href={`mailto:${selectedMarker.email}`}
-                    className="rounded-md bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-700"
-                  >
-                    Email
-                  </a>
-                )}
-                {selectedMarker.kind === 'hospital' && onRequestBooking && (
-                  <button
-                    type="button"
-                    onClick={() => onRequestBooking(selectedMarker)}
-                    className="rounded-md bg-violet-100 px-2 py-1 text-[11px] font-semibold text-violet-700"
-                  >
-                    Book
-                  </button>
-                )}
               </div>
             </div>
           </InfoWindowF>

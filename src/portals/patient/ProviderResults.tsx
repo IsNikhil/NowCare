@@ -280,14 +280,6 @@ function HospitalCard({
               {address}
             </p>
           )}
-          {phone && (
-            <a href={`tel:${phone}`} className="text-xs flex items-center gap-1 mt-0.5 hover:underline"
-              onClick={(e) => e.stopPropagation()}
-              style={{ color: 'var(--accent-teal)' }}>
-              <Phone size={11} strokeWidth={1.75} />
-              {phone}
-            </a>
-          )}
           {email && (
             <a href={`mailto:${email}`} className="text-xs flex items-center gap-1 mt-0.5 hover:underline"
               onClick={(e) => e.stopPropagation()}
@@ -333,20 +325,6 @@ function HospitalCard({
           >
             <MapPin size={13} strokeWidth={1.75} />
             Show on map
-          </Button>
-        )}
-        {h.lat && h.lng && (
-          <Button
-            variant="secondary"
-            size="sm"
-            as="a"
-            href={directionsUrl(h.lat, h.lng, address)}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Navigation size={13} strokeWidth={1.75} />
-            Directions
           </Button>
         )}
         {phone && (
@@ -444,6 +422,7 @@ function HospitalActionSheet({ hospital, patientId, open, onClose }: {
             <Button size="sm" as="a" href={directionsUrl(hospital.lat, hospital.lng, address)} target="_blank" rel="noopener noreferrer">
               <Navigation size={14} strokeWidth={1.75} />
               Directions
+              <ExternalLink size={11} strokeWidth={1.75} />
             </Button>
             {phone && (
               <Button size="sm" variant="secondary" as="a" href={`tel:${phone}`}>
@@ -833,11 +812,6 @@ export default function ProviderResultsPage() {
     }
   }
 
-  function openHospitalActionsByMarker(marker: MapMarker) {
-    const hospital = hospitals.find((h) => h.id === marker.id)
-    if (hospital) setActionHospital(hospital)
-  }
-
   const selectedHospital = focusedMarkerId ? hospitals.find((h) => h.id === focusedMarkerId) : null
 
   const [travelInfo, setTravelInfo] = useState<{ distance: string; duration: string } | null>(null)
@@ -1204,10 +1178,11 @@ export default function ProviderResultsPage() {
                 markers={mapMarkers}
                 centerLat={effectiveLat}
                 centerLng={effectiveLng}
+                userLat={effectiveLat}
+                userLng={effectiveLng}
                 focusedMarkerId={focusedMarkerId}
                 focusVersion={focusVersion}
                 onMarkerSelect={handleMarkerSelect}
-                onRequestBooking={openHospitalActionsByMarker}
               />
             </div>
             {selectedHospital && (

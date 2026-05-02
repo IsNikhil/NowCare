@@ -105,4 +105,4 @@ We use a simple feature-branch workflow:
 
 ## 🔧 Deployed Link
 
-nowcare.vercel.app
+[nowcare.vercel.app](https://nowcare.vercel.app)
